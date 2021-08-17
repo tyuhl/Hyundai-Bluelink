@@ -40,7 +40,13 @@ metadata {
 		capability "Sensor"
 		capability "Refresh"
 
-		attribute "Status", "string"
+		attribute "Name", "string"
+		attribute "VIN", "string"
+		attribute "Model", "string"
+		attribute "Trim", "string"
+		attribute "RegId", "string"
+		attribute "Odometer", "string"
+
 		command "Lock"
 		command "Unlock"
 		command "Start"

@@ -101,7 +101,7 @@ def debugPage() {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
 		section {
-			input 'getStatus', 'button', title: 'Get Vehicle Status', submitOnChange: true
+			input 'getVehicles', 'button', title: 'Get Vehicles', submitOnChange: true
 		}
 	}
 }
@@ -117,8 +117,8 @@ def appButtonHandler(btn) {
 		case 'initialize':
 			initialize()
 			break
-		case 'getStatus':
-			getStatus()
+		case 'getVehicles':
+			getVehicles()
 			break
 		default:
 			log("Invalid Button In Handler", "error")
@@ -133,6 +133,15 @@ void installed() {
 void updated() {
 	log("Updatedwith settings: ${settings}", "trace")
 	initialize()
+}
+
+void uninstalled() {
+	log("Uninstalling Hyundai Bluelink App and deleting child devices", "info")
+	unschedule()
+	for (device in getChildDevices())
+	{
+		deleteChildDevice(device.deviceNetworkId)
+	}
 }
 
 void initialize() {
@@ -217,9 +226,9 @@ def authResponse(response)
 	}
 }
 
-def getStatus()
+def getVehicles()
 {
-	log("getStatus called", "trace")
+	log("getVehicles called", "trace")
 
 	def uri = global_apiURL + "/ac/v2/enrollment/details/" + user_name
 	def headers = [ access_token: state.access_token, client_id: client_id, includeNonConnectedVehicles : "Y"]
@@ -243,12 +252,45 @@ def getStatus()
 		return;
 	}
 
-	//TODO: Parse the returned Json to get interesting info
+	//TODO: Parse the returned Json to get a list of enrolled vehicles
+	if (reJson.enrolledVehicleDetails == null) {
+		log("No enrolled vehicles found.", "info")
+	}
+	else {
+		reJson.enrolledVehicleDetails.each{ vehicle ->
+			log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
+			CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
+		}
+	}
 }
 
 ///
 // Supporting helpers
 ///
+private void CreateChildDriver(String Name, String Vin)
+{
+	log("CreateChildDriver called", "trace")
+	String vehicleNetId = "Hyundai_" + Vin
+	try {
+		def newDevice = addChildDevice(
+				'tyuhl',
+				'Hyundai Bluelink Driver',
+				vehicleNetId,
+				[
+						name : "Hyundai Bluelink Driver",
+						label: Name
+				])
+	}
+	catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
+		log("${e.message} - you need to install the appropriate driver.", "info")
+		return
+	}
+	catch (IllegalArgumentException e) {
+		//Intentionally ignored.  Expected if device id already exists in HE.
+		log("Error: ${e.message}", "trace")
+	}
+}
+
 private determineLogLevel(data) {
 	switch (data?.toUpperCase()) {
 		case "TRACE":

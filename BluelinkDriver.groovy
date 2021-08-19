@@ -49,6 +49,9 @@ metadata {
 				attribute "Odometer", "string"
 				attribute "vehicleGeneration", "string"
 				attribute "brandIndicator", "string"
+				attribute "Engine", "string"
+				attribute "DoorLocks", "string"
+				attribute "Trunk", "string"
 
 				command "Lock"
 				command "Unlock"
@@ -104,11 +107,13 @@ void refresh()
 void Lock()
 {
 	log("Lock called", "trace")
+	parent.Lock(device)
 }
 
 void Unlock()
 {
 	log("Unlock called", "trace")
+	parent.Unlock(device)
 }
 
 void Start()

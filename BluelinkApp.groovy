@@ -278,16 +278,17 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 {
 	log("getVehicleStatus() called", "trace")
 
+	//Note: this API can take up to a minute tor return if REFRESH=true because it contacts the car's modem and
+	//doesn't use cached info.
 	def uri = global_apiURL + "/ac/v2/rcs/rvs/vehicleStatus"
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-5')
 	headers.put('REFRESH', refresh.toString())
-	def params = [ uri: uri, headers: headers, timeout: '120' ]
+	String valTimeout = refresh ? '240' : '10'
+	def params = [ uri: uri, headers: headers, timeout: valTimeout ]
 	log("getStatus ${params}", "debug")
 
 	//add error checking
-	//Note: this API can take up to a minute tor return if REFRESH=true because it contacts the car's modem and
-	//doesn't use cached info.
 	def reJson = ''
 	try
 	{
@@ -298,6 +299,9 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 			log("reJson: ${reJson}", "debug")
 		}
 		// Update relevant device attributes
+		sendEvent(device, [name: 'Engine', value: reJson.vehicleStatus.engine ? 'On' : 'Off'])
+		sendEvent(device, [name: 'DoorLocks', value: reJson.vehicleStatus.doorLock ? 'Locked' : 'Unlocked'])
+		sendEvent(device, [name: 'Trunk', value: reJson.vehicleStatus.trunkOpen ? 'Open' : 'Closed'])
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
@@ -305,9 +309,61 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	}
 }
 
+void Lock(com.hubitat.app.DeviceWrapper device)
+{
+	if( !LockUnlockHelper(device, '/ac/v2/rcs/rdo/off') )
+	{
+		log("Lock call failed -- try waiting before retrying", "info")
+	} else
+	{
+		log("Lock call made to car -- can take some time to lock", "info")
+	}
+}
+
+void Unlock(com.hubitat.app.DeviceWrapper device)
+{
+	if( !LockUnlockHelper(device, '/ac/v2/rcs/rdo/on') )
+	{
+		log("Unlock call failed -- try waiting before retrying", "info")
+	}else
+	{
+		log("Unlock call made to car -- can take some time to unock", "info")
+	}
+}
+
 ///
 // Supporting helpers
 ///
+private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String urlSuffix)
+{
+	log("LockUnlockHelper() called", "trace")
+
+	def uri = global_apiURL + urlSuffix
+	def headers = getDefaultHeaders(device)
+	headers.put('offset', '-5')
+	String theVIN = device.currentValue("VIN")
+	def body = [
+			"userName": user_name,
+			"vin": theVIN
+	]
+
+	def params = [ uri: uri, headers: headers, body: body, timeout: '10' ]
+	log("LockUnlockHelper ${params}", "debug")
+
+	int reCode = 0
+	try
+	{
+		httpPost(params) { response ->
+			reCode = response.getStatus();
+		}
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		log("LockUnlockHelper failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+	}
+	return (reCode == 200)
+}
+
 private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWrapper device) {
 	log("getDefaultHeaders() called", "trace")
 

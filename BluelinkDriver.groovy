@@ -98,6 +98,7 @@ void initialize() {
 void refresh()
 {
 	log("refresh called", "trace")
+	parent.getVehicleStatus(device)
 }
 
 void Lock()

@@ -233,10 +233,10 @@ def getVehicles()
 	def uri = global_apiURL + "/ac/v2/enrollment/details/" + user_name
 	def headers = [ access_token: state.access_token, client_id: client_id, includeNonConnectedVehicles : "Y"]
 	def params = [ uri: uri, headers: headers ]
-	log("getStatus ${params}", "debug")
+	log("getVehicles ${params}", "debug")
 
 	//add error checking
-	def reJson =''
+	def reJson = ''
 	try
 	{
 		httpGet(params) { response ->
@@ -274,9 +274,71 @@ def getVehicles()
 	}
 }
 
+void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = false)
+{
+	log("getVehicleStatus() called", "trace")
+
+	def uri = global_apiURL + "/ac/v2/rcs/rvs/vehicleStatus"
+	def headers = getDefaultHeaders(device)
+	headers.put('offset', '-5')
+	headers.put('REFRESH', refresh.toString())
+	def params = [ uri: uri, headers: headers, timeout: '120' ]
+	log("getStatus ${params}", "debug")
+
+	//add error checking
+	//Note: this API can take up to a minute tor return if REFRESH=true because it contacts the car's modem and
+	//doesn't use cached info.
+	def reJson = ''
+	try
+	{
+		httpGet(params) { response ->
+			def reCode = response.getStatus();
+			reJson = response.getData();
+			log("reCode: ${reCode}", "debug")
+			log("reJson: ${reJson}", "debug")
+		}
+		// Update relevant device attributes
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		log("getStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+	}
+}
+
 ///
 // Supporting helpers
 ///
+private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWrapper device) {
+	log("getDefaultHeaders() called", "trace")
+
+	LinkedHashMap<String, String> theHeaders = [];
+	try {
+		String theVIN = device.currentValue("VIN")
+		String regId = device.currentValue("RegId")
+		String generation = device.currentValue("vehicleGeneration")
+		String brand = device.currentValue("brandIndicator")
+		theHeaders = [
+				'access_token' : state.access_token,
+				'client_id'   : client_id,
+				'language'    : '0',
+				'vin'         : theVIN,
+				'APPCLOUD-VIN' : theVIN,
+				'username' : user_name,
+				'registrationId' : regId,
+				'gen' : generation,
+				'to' : 'ISS',
+				'from' : 'SPA',
+				'encryptFlag' : 'false',
+				'bluelinkservicepin' : bluelink_pin,
+				'brandindicator' : brand
+		]
+	} catch(Exception e) {
+		log("Unable to generate API headers - Did you fill in all required information?", "error")
+	}
+
+	return theHeaders
+}
+
 private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String Vin)
 {
 	log("CreateChildDriver called", "trace")

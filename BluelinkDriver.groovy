@@ -33,25 +33,28 @@ metadata {
 			namespace: "tyuhl",
 			description: "Driver for accessing Hyundai Bluelink web services",
 			importUrl: "",
-			author: "Tim Yuhl") {
-		capability "Switch"
-		capability "Initialize"
-		capability "Actuator"
-		capability "Sensor"
-		capability "Refresh"
+			author: "Tim Yuhl")
+			{
+				capability "Switch"
+				capability "Initialize"
+				capability "Actuator"
+				capability "Sensor"
+				capability "Refresh"
 
-		attribute "Name", "string"
-		attribute "VIN", "string"
-		attribute "Model", "string"
-		attribute "Trim", "string"
-		attribute "RegId", "string"
-		attribute "Odometer", "string"
+				attribute "NickName", "string"
+				attribute "VIN", "string"
+				attribute "Model", "string"
+				attribute "Trim", "string"
+				attribute "RegId", "string"
+				attribute "Odometer", "string"
+				attribute "vehicleGeneration", "string"
+				attribute "brandIndicator", "string"
 
-		command "Lock"
-		command "Unlock"
-		command "Start"
-		command "Stop"
-	}
+				command "Lock"
+				command "Unlock"
+				command "Start"
+				command "Stop"
+			}
 	preferences {
 		section("Logging") {
 			input "logging", "enum", title: "Log Level", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]

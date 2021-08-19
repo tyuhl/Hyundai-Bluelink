@@ -56,16 +56,16 @@ def mainPage()
 		section(getFormat("header-blue-grad","About")) {
 			paragraph "This application and the corresponding driver are used to access the Hyundai Bluelink web services"
 		}
-		section(getFormat("header-blue-grad","Username")) {
+		section(getFormat("item-light-grey","Username")) {
 			input name: "user_name", type: "string", title: "Bluelink Username"
 		}
-		section(getFormat("header-blue-grad", "Password")) {
+		section(getFormat("item-light-grey", "Password")) {
 			input name: "user_pwd",type: "string", title: "Bluelink Password"
 		}
-		section(getFormat("header-blue-grad", "PIN")) {
+		section(getFormat("item-light-grey", "PIN")) {
 			input name: "bluelink_pin",type: "string", title: "Bluelink PIN"
 		}
-		section("Logging") {
+		section(getFormat("header-blue-grad","Logging")) {
 			input name: "logging", type: "enum", title: "Log Level", description: "Debug logging", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
 		}
 		getDebugLink()
@@ -204,7 +204,7 @@ void refreshToken() {
 
 def authResponse(response)
 {
-	log("authResponse called", "debug")
+	log("authResponse called", "trace")
 
 	def reCode = response.getStatus()
 	def reJson = response.getData()
@@ -217,7 +217,7 @@ def authResponse(response)
 		state.refresh_token = reJson.refresh_token
 
 		Integer expireTime = (Integer.parseInt(reJson.expires_in) - 100)
-		log("Bluelink token refreshed successfully, Next Scheduled in: ${expireTime} sec", "info")
+		log("Bluelink token refreshed successfully, Next Scheduled in: ${expireTime} sec", "debug")
 		runIn(expireTime, refreshToken)
 	}
 	else
@@ -248,31 +248,42 @@ def getVehicles()
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
-		log("getStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 		return;
 	}
 
-	//TODO: Parse the returned Json to get a list of enrolled vehicles
 	if (reJson.enrolledVehicleDetails == null) {
 		log("No enrolled vehicles found.", "info")
 	}
 	else {
-		reJson.enrolledVehicleDetails.each{ vehicle ->
-			log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
-			CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
-		}
+			reJson.enrolledVehicleDetails.each{ vehicle ->
+				log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
+				def newDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
+				if (newDevice != null) {
+					//populate attributes
+					sendEvent(newDevice, [name: "NickName", value:  vehicle.vehicleDetails.nickName])
+					sendEvent(newDevice, [name: "VIN", value:  vehicle.vehicleDetails.vin])
+					sendEvent(newDevice, [name: "RegId", value:  vehicle.vehicleDetails.regid])
+					sendEvent(newDevice, [name: "Odemeter", value:  vehicle.vehicleDetails.odemeter])
+					sendEvent(newDevice, [name: "Model", value:  vehicle.vehicleDetails.series])
+					sendEvent(newDevice, [name: "Trim", value:  vehicle.vehicleDetails.trim])
+					sendEvent(newDevice, [name: "vehicleGeneration", value:  vehicle.vehicleDetails.vehicleGeneration])
+					sendEvent(newDevice, [name: "brandIndicator", value:  vehicle.vehicleDetails.brandIndicator])
+				 }
+			}
 	}
 }
 
 ///
 // Supporting helpers
 ///
-private void CreateChildDriver(String Name, String Vin)
+private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String Vin)
 {
 	log("CreateChildDriver called", "trace")
 	String vehicleNetId = "Hyundai_" + Vin
+	com.hubitat.app.ChildDeviceWrapper newDevice = null
 	try {
-		def newDevice = addChildDevice(
+			newDevice = addChildDevice(
 				'tyuhl',
 				'Hyundai Bluelink Driver',
 				vehicleNetId,
@@ -283,12 +294,12 @@ private void CreateChildDriver(String Name, String Vin)
 	}
 	catch (com.hubitat.app.exception.UnknownDeviceTypeException e) {
 		log("${e.message} - you need to install the appropriate driver.", "info")
-		return
 	}
 	catch (IllegalArgumentException e) {
 		//Intentionally ignored.  Expected if device id already exists in HE.
 		log("Error: ${e.message}", "trace")
 	}
+	return newDevice
 }
 
 private determineLogLevel(data) {

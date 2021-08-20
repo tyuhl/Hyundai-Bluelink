@@ -169,7 +169,6 @@ void uninstalled() {
 void initialize() {
 	setVersion()
 	unschedule()
-//	refreshToken()
 }
 
 void authorize() {
@@ -248,7 +247,7 @@ def authResponse(response)
 	}
 }
 
-def getVehicles()
+def getVehicles(Boolean retry=false)
 {
 	log("getVehicles called", "trace")
 
@@ -270,6 +269,12 @@ def getVehicles()
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			getVehicles(device, true)
+		}
 		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 		return;
 	}
@@ -296,7 +301,7 @@ def getVehicles()
 	}
 }
 
-void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = false)
+void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = false, Boolean retry=false)
 {
 	log("getVehicleStatus() called", "trace")
 
@@ -327,6 +332,12 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			getVehicleStatus(device, refresh, true)
+		}
 		log("getVehicleStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 	}
 }
@@ -353,10 +364,87 @@ void Unlock(com.hubitat.app.DeviceWrapper device)
 	}
 }
 
+void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
+{
+	log("Start() called", "trace")
+
+	def uri = global_apiURL + '/ac/v2/rcs/rsc/start'
+	def headers = getDefaultHeaders(device)
+	headers.put('offset', '-4')
+	String theVIN = device.currentValue("VIN")
+	def body = [
+			"userName": user_name,
+			"vin": theVIN,
+			"ims": "0",
+			"airCtrl" : "0",
+			"airTemp" : ["unit" : 1, "value": "70"],
+			"defrost" : "false",
+			"heating1" : "0",
+			"ignitionDuration" : "10",
+			"seatHeaterVentInfo" : ""  //unknown
+	]
+
+	def params = [ uri: uri, headers: headers, body: body, timeout: '10' ]
+	log("Start ${params}", "debug")
+
+	int reCode = 0
+	try
+	{
+		httpPost(params) { response ->
+			reCode = response.getStatus();
+			if (reCode == 200) {
+				log("Vehicle successfully started.","info")
+			}
+		}
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			Start(device, true)
+		}
+		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+	}
+}
+
+void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
+{
+	log("Stop() called", "trace")
+
+	def uri = global_apiURL + '/ac/v2/rcs/rsc/stop'
+	def headers = getDefaultHeaders(device)
+	headers.put('offset', '-4')
+	def params = [ uri: uri, headers: headers, timeout: '10' ]
+	log("Stop ${params}", "debug")
+
+	int reCode = 0
+	try
+	{
+		httpPost(params) { response ->
+			reCode = response.getStatus();
+			if (reCode == 200) {
+				log("Vehicle successfully stopped.","info")
+			}
+		}
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			Stop(device, true)
+		}
+		log("Stop vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+	}
+}
+
 ///
 // Supporting helpers
 ///
-private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String urlSuffix)
+private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String urlSuffix, Boolean retry=false)
 {
 	log("LockUnlockHelper() called", "trace")
 
@@ -381,6 +469,12 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			LockUnlockHelper(device, urlSuffix, true)
+		}
 		log("LockUnlockHelper failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
 	}
 	return (reCode == 200)

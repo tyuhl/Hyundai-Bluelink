@@ -117,11 +117,13 @@ void Unlock()
 void Start()
 {
 	log("Start called", "trace")
+	parent.Start(device)
 }
 
 void Stop()
 {
 	log("Stop called", "trace")
+	parent.Stop(device)
 }
 ///
 // Supporting helpers

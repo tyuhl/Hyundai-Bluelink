@@ -47,28 +47,52 @@ definition(
 
 preferences {
 	page(name: "mainPage")
+	page(name: "accountInfoPage")
 	page(name: "debugPage", title: "Debug Options", install: false)
 }
 
 def mainPage()
 {
 	dynamicPage(name: "mainPage", title: "Hyundai Bluelink App", install: true, uninstall: true) {
-		section(getFormat("header-blue-grad","About")) {
-			paragraph "This application and the corresponding driver are used to access the Hyundai Bluelink web services"
+		section(getFormat("title","About Hyundai Bluelink Application")) {
+			paragraph "This application and the corresponding driver are used to access the Hyundai Bluelink web services with Hubitat Elevation. Follow the steps below to configure the application."
 		}
-		section(getFormat("item-light-grey","Username")) {
+		section(getFormat("header-blue-grad","   1.  Set Bluelink Account Information")) {
+		}
+		getAccountLink()
+		section(getFormat("header-blue-grad","   2.  Use This Button To Discover Vehicles and Create Drivers for Each")) {
+			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
+		}
+		section(getFormat("header-blue-grad","Change Logging Level")) {
+			input name: "logging", type: "enum", title: "Log Level", description: "Debug logging", required: false, submitOnChange: true, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
+		}
+		getDebugLink()
+	}
+}
+
+def accountInfoPage()
+{
+	dynamicPage(name: "accountInfoPage", title: "Set Bluelink Account Information", install: false, uninstall: false) {
+		section(getFormat("item-light-grey", "Username")) {
 			input name: "user_name", type: "string", title: "Bluelink Username"
 		}
 		section(getFormat("item-light-grey", "Password")) {
-			input name: "user_pwd",type: "string", title: "Bluelink Password"
+			input name: "user_pwd", type: "string", title: "Bluelink Password"
 		}
 		section(getFormat("item-light-grey", "PIN")) {
-			input name: "bluelink_pin",type: "string", title: "Bluelink PIN"
+			input name: "bluelink_pin", type: "string", title: "Bluelink PIN"
 		}
-		section(getFormat("header-blue-grad","Logging")) {
-			input name: "logging", type: "enum", title: "Log Level", description: "Debug logging", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
-		}
-		getDebugLink()
+	}
+}
+
+def getAccountLink() {
+	section{
+		href(
+				name       : 'accountHref',
+				title      : 'Account Information',
+				page       : 'accountInfoPage',
+				description: 'Set or Change Bluelink Account Information'
+		)
 	}
 }
 
@@ -92,9 +116,6 @@ def debugPage() {
 			paragraph "Debug buttons"
 		}
 		section {
-			input 'authorize', 'button', title: 'authorize', submitOnChange: true
-		}
-		section {
 			input 'refreshToken', 'button', title: 'Force Token Refresh', submitOnChange: true
 		}
 		section {
@@ -108,8 +129,9 @@ def debugPage() {
 
 def appButtonHandler(btn) {
 	switch (btn) {
-		case 'authorize':
-			authorize();
+		case 'discover':
+			authorize()
+			getVehicles()
 			break;
 		case 'refreshToken':
 			refreshToken()
@@ -284,9 +306,9 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-5')
 	headers.put('REFRESH', refresh.toString())
-	String valTimeout = refresh ? '240' : '10'
+	String valTimeout = refresh ? '240' : '10' //timeout in sec.
 	def params = [ uri: uri, headers: headers, timeout: valTimeout ]
-	log("getStatus ${params}", "debug")
+	log("getVehicleStatus ${params}", "debug")
 
 	//add error checking
 	def reJson = ''
@@ -305,7 +327,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
-		log("getStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		log("getVehicleStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 	}
 }
 
@@ -415,7 +437,7 @@ private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String
 	}
 	catch (IllegalArgumentException e) {
 		//Intentionally ignored.  Expected if device id already exists in HE.
-		log("Error: ${e.message}", "trace")
+		log("Ignored: ${e.message}", "trace")
 	}
 	return newDevice
 }
@@ -473,6 +495,7 @@ def getFormat(type, myText="") {
 	if(type == "header-green") return "<div style='color:#ffffff; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background-color:#81BC00; border: 1px solid;box-shadow: 2px 3px #A9A9A9'>${myText}</div>"
 	if(type == "header-light-grey") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background-color:#D8D8D8; border: 1px solid;box-shadow: 2px 3px #A9A9A9'>${myText}</div>"
 	if(type == "header-blue-grad") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background: linear-gradient(to bottom, #d4e4ef 0%,#86aecc 100%);  border: 2px'>${myText}</div>"
+	if(type == "header-center-blue-grad") return "<div style='text-align:center; color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background: linear-gradient(to bottom, #d4e4ef 0%,#86aecc 100%);  border: 2px'>${myText}</div>"
 	if(type == "item-light-grey") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: normal; padding-left: 10px; background-color:#D8D8D8; border: 1px solid'>${myText}</div>"
 	if(type == "line") return "<hr style='background-color:#1A77C9; height: 1px; border: 0;'>"
 	if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"

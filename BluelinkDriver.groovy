@@ -73,13 +73,11 @@ void installed()
 {
 	log("installed() called", "trace")
 	setVersion()
-	initialize()
 }
 
 void updated()
 {
 	log("updated() called", "trace")
-	setVersion()
 	initialize()
 }
 

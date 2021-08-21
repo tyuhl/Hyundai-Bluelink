@@ -52,6 +52,7 @@ metadata {
 				attribute "Engine", "string"
 				attribute "DoorLocks", "string"
 				attribute "Trunk", "string"
+				attribute "LastRefreshTime", "string"
 
 				command "Lock"
 				command "Unlock"
@@ -59,6 +60,11 @@ metadata {
 				command "Stop"
 			}
 	preferences {
+		section("Driver Options") {
+			input ("fullRefresh", "bool",
+					title: "Full refresh - Set this true to query the vehicle and not use the vehicle's cached data. Warning: Setting this option means that refreshing the data can take as much as 2 minutes.",
+					defaultValue:false)
+		}
 		section("Logging") {
 			input "logging", "enum", title: "Log Level", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
 		}
@@ -73,6 +79,7 @@ void installed()
 {
 	log("installed() called", "trace")
 	setVersion()
+	fullRefresh = false;
 }
 
 void updated()
@@ -99,7 +106,7 @@ void initialize() {
 void refresh()
 {
 	log("refresh called", "trace")
-	parent.getVehicleStatus(device)
+	parent.getVehicleStatus(device, fullRefresh, false)
 }
 
 void Lock()

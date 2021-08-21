@@ -20,6 +20,7 @@
  *
  */
 
+
 import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
 import groovy.transform.Field
@@ -194,7 +195,7 @@ void authorize() {
 	}
 }
 
-void refreshToken() {
+void refreshToken(Boolean refresh=false) {
 	log("refreshToken called", "trace")
 
 	if (state.refresh_token != null)
@@ -211,6 +212,14 @@ void refreshToken() {
 		try
 		{
 			httpPost(params) { response -> authResponse(response) }
+		}
+		catch (java.net.SocketTimeoutException e)
+		{
+			def reCode = e.statusCode()
+			if (!refresh) {
+				log("Socket timeout exception with code: ${reCode}, will retry refresh token", "info")
+				refreshToken(true)
+			}
 		}
 		catch (groovyx.net.http.HttpResponseException e)
 		{
@@ -329,6 +338,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		sendEvent(device, [name: 'Engine', value: reJson.vehicleStatus.engine ? 'On' : 'Off'])
 		sendEvent(device, [name: 'DoorLocks', value: reJson.vehicleStatus.doorLock ? 'Locked' : 'Unlocked'])
 		sendEvent(device, [name: 'Trunk', value: reJson.vehicleStatus.trunkOpen ? 'Open' : 'Closed'])
+		sendEvent(device, [name: "LastRefreshTime", value: reJson.vehicleStatus.dateTime])
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
@@ -375,13 +385,13 @@ void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	def body = [
 			"userName": user_name,
 			"vin": theVIN,
-			"ims": "0",
-			"airCtrl" : "0",
-			"airTemp" : ["unit" : 1, "value": "70"],
-			"defrost" : "false",
-			"heating1" : "0",
-			"ignitionDuration" : "10",
-			"seatHeaterVentInfo" : ""  //unknown
+			"ims": 0,
+			"airCtrl" : 0,
+			"airTemp" : ["unit" : 1, "value": 70],
+			"defrost" : false,
+			"heating1" : 0,
+			"ignitionDuration" : 10,
+			"seatHeaterVentInfo" : null  //unknown
 	]
 
 	def params = [ uri: uri, headers: headers, body: body, timeout: '10' ]

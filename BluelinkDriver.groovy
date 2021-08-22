@@ -107,6 +107,7 @@ void refresh()
 {
 	log("refresh called", "trace")
 	parent.getVehicleStatus(device, fullRefresh, false)
+	parent. updateVehicleOdometer(device)
 }
 
 void Lock()

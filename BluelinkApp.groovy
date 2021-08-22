@@ -215,7 +215,7 @@ void refreshToken(Boolean refresh=false) {
 		}
 		catch (java.net.SocketTimeoutException e)
 		{
-			def reCode = e.statusCode()
+			def reCode = e.getStatusCode()
 			if (!refresh) {
 				log("Socket timeout exception with code: ${reCode}, will retry refresh token", "info")
 				refreshToken(true)
@@ -300,13 +300,58 @@ def getVehicles(Boolean retry=false)
 					sendEvent(newDevice, [name: "NickName", value:  vehicle.vehicleDetails.nickName])
 					sendEvent(newDevice, [name: "VIN", value:  vehicle.vehicleDetails.vin])
 					sendEvent(newDevice, [name: "RegId", value:  vehicle.vehicleDetails.regid])
-					sendEvent(newDevice, [name: "Odemeter", value:  vehicle.vehicleDetails.odemeter])
+					sendEvent(newDevice, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
 					sendEvent(newDevice, [name: "Model", value:  vehicle.vehicleDetails.series])
 					sendEvent(newDevice, [name: "Trim", value:  vehicle.vehicleDetails.trim])
 					sendEvent(newDevice, [name: "vehicleGeneration", value:  vehicle.vehicleDetails.vehicleGeneration])
 					sendEvent(newDevice, [name: "brandIndicator", value:  vehicle.vehicleDetails.brandIndicator])
 				 }
 			}
+	}
+}
+
+void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=false) {
+	log("updateVehicleOdometer called", "trace")
+
+	def uri = global_apiURL + "/ac/v2/enrollment/details/" + user_name
+	def headers = [ access_token: state.access_token, client_id: client_id, includeNonConnectedVehicles : "Y"]
+	def params = [ uri: uri, headers: headers ]
+	log("updateVehicleOdometer ${params}", "debug")
+
+	//add error checking
+	def reJson = ''
+	try
+	{
+		httpGet(params) { response ->
+			def reCode = response.getStatus();
+			reJson = response.getData();
+			log("reCode: ${reCode}", "debug")
+			log("reJson: ${reJson}", "debug")
+		}
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			updateVehicleOdometer(device, true)
+		}
+		log("updateVehicleOdometer failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		return;
+	}
+
+	if (reJson.enrolledVehicleDetails == null) {
+		log("No vehicles found to read odometer.", "info")
+	}
+	else {
+		String theVIN = device.currentValue("VIN")
+		reJson.enrolledVehicleDetails.each{ vehicle ->
+				if(vehicle.vehicleDetails.vin == theVIN) {
+					sendEvent(device, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
+					return
+			}
+		}
 	}
 }
 
@@ -320,7 +365,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-5')
 	headers.put('REFRESH', refresh.toString())
-	String valTimeout = refresh ? '240' : '10' //timeout in sec.
+	int valTimeout = refresh ? 240 : 10 //timeout in sec.
 	def params = [ uri: uri, headers: headers, timeout: valTimeout ]
 	log("getVehicleStatus ${params}", "debug")
 
@@ -394,7 +439,7 @@ void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 			"seatHeaterVentInfo" : null  //unknown
 	]
 
-	def params = [ uri: uri, headers: headers, body: body, timeout: '10' ]
+	def params = [ uri: uri, headers: headers, body: body, timeout: 10 ]
 	log("Start ${params}", "debug")
 
 	int reCode = 0
@@ -426,7 +471,7 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	def uri = global_apiURL + '/ac/v2/rcs/rsc/stop'
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
-	def params = [ uri: uri, headers: headers, timeout: '10' ]
+	def params = [ uri: uri, headers: headers, timeout: 10 ]
 	log("Stop ${params}", "debug")
 
 	int reCode = 0
@@ -467,7 +512,7 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 			"vin": theVIN
 	]
 
-	def params = [ uri: uri, headers: headers, body: body, timeout: '10' ]
+	def params = [ uri: uri, headers: headers, body: body, timeout: 10 ]
 	log("LockUnlockHelper ${params}", "debug")
 
 	int reCode = 0

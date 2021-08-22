@@ -53,11 +53,17 @@ metadata {
 				attribute "DoorLocks", "string"
 				attribute "Trunk", "string"
 				attribute "LastRefreshTime", "string"
+				attribute "locLatitude", "string"
+				attribute "locLongitude", "string"
+				attribute "locSpeed", "string"
+				attribute "locAltitude", "string"
+				attribute "locUpdateTime", "string"
 
 				command "Lock"
 				command "Unlock"
 				command "Start"
 				command "Stop"
+				command "Location"
 			}
 	preferences {
 		section("Driver Options") {
@@ -133,6 +139,13 @@ void Stop()
 	log("Stop called", "trace")
 	parent.Stop(device)
 }
+
+void Location()
+{
+	log("Location called", "trace")
+	parent.getLocation(device)
+}
+
 ///
 // Supporting helpers
 ///

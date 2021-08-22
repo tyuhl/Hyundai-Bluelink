@@ -20,7 +20,6 @@
  *
  */
 
-
 import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
 import groovy.transform.Field
@@ -266,12 +265,12 @@ def getVehicles(Boolean retry=false)
 	log("getVehicles ${params}", "debug")
 
 	//add error checking
-	def reJson = ''
+	LinkedHashMap reJson = []
 	try
 	{
 		httpGet(params) { response ->
 			def reCode = response.getStatus();
-			reJson = response.getData();
+			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
 		}
@@ -285,7 +284,7 @@ def getVehicles(Boolean retry=false)
 			getVehicles(device, true)
 		}
 		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
-		return;
+		return
 	}
 
 	if (reJson.enrolledVehicleDetails == null) {
@@ -319,12 +318,12 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 	log("updateVehicleOdometer ${params}", "debug")
 
 	//add error checking
-	def reJson = ''
+	LinkedHashMap  reJson = []
 	try
 	{
 		httpGet(params) { response ->
 			def reCode = response.getStatus();
-			reJson = response.getData();
+			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
 		}
@@ -338,7 +337,7 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 			updateVehicleOdometer(device, true)
 		}
 		log("updateVehicleOdometer failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
-		return;
+		return
 	}
 
 	if (reJson.enrolledVehicleDetails == null) {
@@ -370,12 +369,12 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	log("getVehicleStatus ${params}", "debug")
 
 	//add error checking
-	def reJson = ''
+	LinkedHashMap  reJson = []
 	try
 	{
 		httpGet(params) { response ->
 			def reCode = response.getStatus();
-			reJson = response.getData();
+			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
 		}
@@ -394,6 +393,48 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 			getVehicleStatus(device, refresh, true)
 		}
 		log("getVehicleStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+	}
+}
+
+void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
+{
+	log("getLocation() called", "trace")
+
+	def uri = global_apiURL + '/ac/v2/rcs/rfc/findMyCar'
+	def headers = getDefaultHeaders(device)
+	headers.put('offset', '-5')
+	def params = [ uri: uri, headers: headers, timeout: 120 ] // long timeout, contacts modem
+	log("getLocation ${params}", "debug")
+
+	LinkedHashMap reJson = []
+	try
+	{
+		httpGet(params) { response ->
+			int reCode = response.getStatus()
+			reJson = response.getData()
+			log("reCode: ${reCode}", "debug")
+			log("reJson: ${reJson}", "debug")
+			if (reCode == 200) {
+				log("getLocation successful.","info")
+			}
+			if( reJson.coord != null) {
+				sendEvent(device, [name: 'locLatitude', value: reJson.coord.lat])
+				sendEvent(device, [name: 'locLongitude', value: reJson.coord.lon])
+				sendEvent(device, [name: 'locAltitude', value: reJson.coord.alt])
+				sendEvent(device, [name: 'locSpeed', value: reJson.speed.value])
+				sendEvent(device, [name: 'locUpdateTime', value: reJson.time])
+			}
+		}
+	}
+	catch (groovyx.net.http.HttpResponseException e)
+	{
+		if (e.getStatusCode() == 401 && !retry)
+		{
+			log('Authorization token expired, will refresh and retry.', 'warn')
+			refreshToken()
+			getLocation(device, true)
+		}
+		log("getLocation failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
 	}
 }
 
@@ -446,7 +487,7 @@ void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	try
 	{
 		httpPost(params) { response ->
-			reCode = response.getStatus();
+			reCode = response.getStatus()
 			if (reCode == 200) {
 				log("Vehicle successfully started.","info")
 			}
@@ -478,7 +519,7 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	try
 	{
 		httpPost(params) { response ->
-			reCode = response.getStatus();
+			reCode = response.getStatus()
 			if (reCode == 200) {
 				log("Vehicle successfully stopped.","info")
 			}
@@ -519,7 +560,7 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 	try
 	{
 		httpPost(params) { response ->
-			reCode = response.getStatus();
+			reCode = response.getStatus()
 		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
@@ -538,7 +579,7 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWrapper device) {
 	log("getDefaultHeaders() called", "trace")
 
-	LinkedHashMap<String, String> theHeaders = [];
+	LinkedHashMap<String, String> theHeaders = []
 	try {
 		String theVIN = device.currentValue("VIN")
 		String regId = device.currentValue("RegId")

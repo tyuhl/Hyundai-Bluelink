@@ -61,19 +61,20 @@ metadata {
 
 				command "Lock"
 				command "Unlock"
-				command "Start"
+				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Profile3"]] ]
 				command "Stop"
 				command "Location"
 			}
+
 	preferences {
 		section("Driver Options") {
-			input ("fullRefresh", "bool",
+			input("fullRefresh", "bool",
 					title: "Full refresh - Set this true to query the vehicle and not use the vehicle's cached data. Warning: Setting this option means that refreshing the data can take as much as 2 minutes.",
-					defaultValue:false)
-		}
-		section("Logging") {
-			input "logging", "enum", title: "Log Level", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
-		}
+					defaultValue: false)
+			}
+			section("Logging") {
+				input "logging", "enum", title: "Log Level", required: false, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
+			}
 	}
 }
 
@@ -128,10 +129,10 @@ void Unlock()
 	parent.Unlock(device)
 }
 
-void Start()
+void Start(String theProfile)
 {
-	log("Start called", "trace")
-	parent.Start(device)
+	log("Start(profile) called with profile = ${theProfile}", "trace")
+	parent.Start(device, theProfile)
 }
 
 void Stop()
@@ -196,3 +197,4 @@ def log(Object data, String type) {
 		}
 	}
 }
+

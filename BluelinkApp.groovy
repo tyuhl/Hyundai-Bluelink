@@ -460,33 +460,42 @@ void Unlock(com.hubitat.app.DeviceWrapper device)
 	}
 }
 
-void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
+void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=false)
 {
-	log("Start() called", "trace")
+	log("Start() called with profile: ${profile}", "trace")
 
 	def uri = global_apiURL + '/ac/v2/rcs/rsc/start'
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
+
+	// Fill in profile parameters
+	int climateCtrl = 0  // 1: climate on, 0: climate off
+	int heatedAcc = 0    // 1: heated steering on, seats?
+	String Temp = "70"
+	Boolean Defrost = false
+	int Duration = 10
+
 	String theVIN = device.currentValue("VIN")
 	def body = [
-			"userName": user_name,
+			"username": user_name,
 			"vin": theVIN,
-			"ims": 0,
-			"airCtrl" : 0,
-			"airTemp" : ["unit" : 1, "value": 70],
-			"defrost" : false,
-			"heating1" : 0,
-			"ignitionDuration" : 10,
-			"seatHeaterVentInfo" : null  //unknown
+			"Ims": 0,
+			"airCtrl" : climateCtrl,
+			"airTemp" : ["unit" : 1, "value": Temp],
+			"defrost" : Defrost,
+			"heating1" : heatedAcc,
+			"igniOnDuration" : Duration,
+			"seatHeaterVentInfo" : null  //what this does is unknown
 	]
+	String sBody = JsonOutput.toJson(body).toString()
 
-	def params = [ uri: uri, headers: headers, body: body, timeout: 10 ]
+	def params = [ uri: uri, headers: headers, body: sBody, timeout: 10 ]
 	log("Start ${params}", "debug")
 
 	int reCode = 0
 	try
 	{
-		httpPost(params) { response ->
+		httpPostJson(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
 				log("Vehicle successfully started.","info")
@@ -499,7 +508,7 @@ void Start(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 		{
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
-			Start(device, true)
+			Start(device, profile,true)
 		}
 		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
 	}

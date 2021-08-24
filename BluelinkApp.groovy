@@ -64,6 +64,7 @@ def mainPage()
 		section(getFormat("header-blue-grad","   2.  Use This Button To Discover Vehicles and Create Drivers for Each")) {
 			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
 		}
+		listDiscoveredVehicles()
 		section(getFormat("header-blue-grad","   3.  Review or Change Start Options")) {
 		}
 		getProfileLink()
@@ -537,7 +538,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		httpPostJson(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
-				log("Vehicle ${theCar}successfully started.","info")
+				log("Vehicle ${theCar} successfully started.","info")
 			}
 		}
 	}
@@ -563,13 +564,14 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	def params = [ uri: uri, headers: headers, timeout: 10 ]
 	log("Stop ${params}", "debug")
 
+	String theCar = device.currentValue("NickName")
 	int reCode = 0
 	try
 	{
 		httpPost(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
-				log("Vehicle successfully stopped.","info")
+				log("Vehicle ${theCar} successfully stopped.","info")
 			}
 		}
 	}
@@ -623,6 +625,27 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 	}
 	return (reCode == 200)
 }
+
+private void listDiscoveredVehicles() {
+	def children = getChildDevices()
+	def builder = new StringBuilder()
+	builder << "<ul>"
+	children.each {
+		if (it != null) {
+			builder << "<li><a href='/device/edit/${it.getId()}'>${it.getLabel()}</a></li>"
+		}
+	}
+	builder << "</ul>"
+	def theCars = builder.toString()
+	if (!children.isEmpty())
+	{
+		section {
+			paragraph "Discovered vehicles are listed below:"
+			paragraph theCars
+		}
+	}
+}
+
 
 private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWrapper device) {
 	log("getDefaultHeaders() called", "trace")

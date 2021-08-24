@@ -73,7 +73,7 @@ def mainPage()
 			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
 		}
 		listDiscoveredVehicles()
-		section(getFormat("header-blue-grad","   3.  Review or Change Start Options")) {
+		section(getFormat("header-blue-grad","   3.  Review or Change Remote Start Options")) {
 		}
 		getProfileLink()
 		section(getFormat("header-blue-grad","Change Logging Level")) {

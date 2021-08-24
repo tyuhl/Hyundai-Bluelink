@@ -18,6 +18,14 @@
  *  History:
  *  8/14/21 - Initial work.
  *
+ *
+ * Special thanks to:
+ *
+ * @thecloudtaylor for his excellent work on the Honeywell Home Thermostat App/Driver for Hubitat - his app was a template for this
+ * App/Driver implementation.
+ *
+ * @Hacksore and his team for their work on Bluelinky, the nodejs app that provided functional Bluelink API calls that I studied to implement this app. This team
+ * reverse-engineered the undocumented Bluelink API. Awesome job.
  */
 
 import groovy.json.JsonSlurper
@@ -114,7 +122,7 @@ def profilesPage()
 				case 2: profileName = "Profile3"
 			}
 			def tempOptions = ["LO", "64", "66", "68", "70", "72", "74", "76", "78", "80", "HI"]
-			section(getFormat("item-light-grey","Profile: ${profileName}")) {
+			section(getFormat("header-blue-grad","Profile: ${profileName}")) {
 				input(name: "${profileName}_climate", type: "bool", title: "Turn on climate control when starting", defaultValue: true, submitOnChange: true)
 				input(name: "${profileName}_temp", type: "enum", title: "Climate temperature to set", options: tempOptions, defaultValue: "70", required: true)
 				input(name: "${profileName}_defrost", type: "bool", title: "Turn on defrost when starting", defaultValue: false, submitOnChange: true)
@@ -161,9 +169,6 @@ def debugPage() {
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
-		section {
-			input 'getVehicles', 'button', title: 'Get Vehicles', submitOnChange: true
-		}
 	}
 }
 
@@ -178,9 +183,6 @@ def appButtonHandler(btn) {
 			break
 		case 'initialize':
 			initialize()
-			break
-		case 'getVehicles':
-			getVehicles()
 			break
 		default:
 			log("Invalid Button In Handler", "error")
@@ -755,7 +757,7 @@ def log(Object data, String type) {
 def getFormat(type, myText="") {
 	if(type == "header-green") return "<div style='color:#ffffff; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background-color:#81BC00; border: 1px solid;box-shadow: 2px 3px #A9A9A9'>${myText}</div>"
 	if(type == "header-light-grey") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background-color:#D8D8D8; border: 1px solid;box-shadow: 2px 3px #A9A9A9'>${myText}</div>"
-	if(type == "header-blue-grad") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background: linear-gradient(to bottom, #d4e4ef 0%,#86aecc 100%);  border: 2px'>${myText}</div>"
+	if(type == "header-blue-grad") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; line-height: 2.0; font-weight: bold; padding-left: 10px; background: linear-gradient(to bottom, #d4e4ef 0%,#86aecc 100%);  border: 2px'>${myText}</div>"
 	if(type == "header-center-blue-grad") return "<div style='text-align:center; color:#000000; border-radius: 5px 5px 5px 5px; font-weight: bold; padding-left: 10px; background: linear-gradient(to bottom, #d4e4ef 0%,#86aecc 100%);  border: 2px'>${myText}</div>"
 	if(type == "item-light-grey") return "<div style='color:#000000; border-radius: 5px 5px 5px 5px; font-weight: normal; padding-left: 10px; background-color:#D8D8D8; border: 1px solid'>${myText}</div>"
 	if(type == "line") return "<hr style='background-color:#1A77C9; height: 1px; border: 0;'>"

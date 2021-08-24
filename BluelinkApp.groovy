@@ -48,6 +48,7 @@ definition(
 preferences {
 	page(name: "mainPage")
 	page(name: "accountInfoPage")
+	page(name: "profilesPage")
 	page(name: "debugPage", title: "Debug Options", install: false)
 }
 
@@ -63,6 +64,9 @@ def mainPage()
 		section(getFormat("header-blue-grad","   2.  Use This Button To Discover Vehicles and Create Drivers for Each")) {
 			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
 		}
+		section(getFormat("header-blue-grad","   3.  Review or Change Start Options")) {
+		}
+		getProfileLink()
 		section(getFormat("header-blue-grad","Change Logging Level")) {
 			input name: "logging", type: "enum", title: "Log Level", description: "Debug logging", required: false, submitOnChange: true, defaultValue: "INFO", options: ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
 		}
@@ -92,6 +96,41 @@ def getAccountLink() {
 				title      : 'Account Information',
 				page       : 'accountInfoPage',
 				description: 'Set or Change Bluelink Account Information'
+		)
+	}
+}
+def profilesPage()
+{
+	dynamicPage(name: "profilesPage", title: "Review/Edit Vehicle Start Options", install: false, uninstall: false) {
+		for (int i = 0; i < 3; i++) {
+			String profileName = "Summer"
+			switch(i)
+			{
+				case 0: profileName = "Summer"
+					break
+				case 1: profileName = "Winter"
+					break
+				case 2: profileName = "Profile3"
+			}
+			def tempOptions = ["LO", "64", "66", "68", "70", "72", "74", "76", "78", "80", "HI"]
+			section(getFormat("item-light-grey","Profile: ${profileName}")) {
+				input(name: "${profileName}_climate", type: "bool", title: "Turn on climate control when starting", defaultValue: true, submitOnChange: true)
+				input(name: "${profileName}_temp", type: "enum", title: "Climate temperature to set", options: tempOptions, defaultValue: "70", required: true)
+				input(name: "${profileName}_defrost", type: "bool", title: "Turn on defrost when starting", defaultValue: false, submitOnChange: true)
+				input(name: "${profileName}_heatAcc", type: "bool", title: "Turn on heated accessories when starting", defaultValue: false, submitOnChange: true)
+				input(name: "${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-10)", defaultValue: 10, range: "1..10", required: true, submitOnChange: true)
+			}
+		}
+	}
+}
+
+def getProfileLink() {
+	section{
+		href(
+				name       : 'profileHref',
+				title      : 'Start Profiles',
+				page       : 'profilesPage',
+				description: 'View or edit vehicle start profiles'
 		)
 	}
 }
@@ -132,7 +171,7 @@ def appButtonHandler(btn) {
 		case 'discover':
 			authorize()
 			getVehicles()
-			break;
+			break
 		case 'refreshToken':
 			refreshToken()
 			break
@@ -269,7 +308,7 @@ def getVehicles(Boolean retry=false)
 	try
 	{
 		httpGet(params) { response ->
-			def reCode = response.getStatus();
+			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
@@ -281,7 +320,7 @@ def getVehicles(Boolean retry=false)
 		{
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
-			getVehicles(device, true)
+			getVehicles(true)
 		}
 		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 		return
@@ -322,7 +361,7 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 	try
 	{
 		httpGet(params) { response ->
-			def reCode = response.getStatus();
+			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
@@ -348,7 +387,6 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 		reJson.enrolledVehicleDetails.each{ vehicle ->
 				if(vehicle.vehicleDetails.vin == theVIN) {
 					sendEvent(device, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
-					return
 			}
 		}
 	}
@@ -373,7 +411,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 	try
 	{
 		httpGet(params) { response ->
-			def reCode = response.getStatus();
+			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
 			log("reJson: ${reJson}", "debug")
@@ -469,13 +507,14 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	headers.put('offset', '-4')
 
 	// Fill in profile parameters
-	int climateCtrl = 0  // 1: climate on, 0: climate off
-	int heatedAcc = 0    // 1: heated steering on, seats?
-	String Temp = "70"
-	Boolean Defrost = false
-	int Duration = 10
+	int climateCtrl = settings["${profile}_climate"] ? 1: 0   // 1: climate on, 0: climate off
+	int heatedAcc = settings["${profile}_heatAcc"] ? 1: 0     // 1: heated steering on, seats?
+	String Temp = settings["${profile}_temp"]
+	Boolean Defrost = settings["${profile}_defrost"]
+	int Duration = settings["${profile}_ignitionDur"]
 
 	String theVIN = device.currentValue("VIN")
+	String theCar = device.currentValue("NickName")
 	def body = [
 			"username": user_name,
 			"vin": theVIN,
@@ -498,7 +537,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		httpPostJson(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
-				log("Vehicle successfully started.","info")
+				log("Vehicle ${theCar}successfully started.","info")
 			}
 		}
 	}

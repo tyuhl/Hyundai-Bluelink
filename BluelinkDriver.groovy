@@ -58,6 +58,7 @@ metadata {
 				attribute "locSpeed", "string"
 				attribute "locAltitude", "string"
 				attribute "locUpdateTime", "string"
+				attribute "statusHtml", "string"
 
 				command "Lock"
 				command "Unlock"
@@ -115,6 +116,7 @@ void refresh()
 	log("refresh called", "trace")
 	parent.getVehicleStatus(device, fullRefresh, false)
 	parent. updateVehicleOdometer(device)
+	updateHtml()
 }
 
 void Lock()
@@ -150,6 +152,21 @@ void Location()
 ///
 // Supporting helpers
 ///
+private void updateHtml()
+{
+	def builder = new StringBuilder()
+	builder << "<table class=\"bldr-tbl\">"
+	String statDoors = device.currentValue("DoorLocks")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Doors:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statDoors + "</td></tr>"
+	String statTrunk = device.currentValue("Trunk")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Trunk:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statTrunk + "</td></tr>"
+	String statEngine = device.currentValue("Engine")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Engine:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statEngine + "</td></tr>"
+	builder << "</table>"
+	String newHtml = builder.toString()
+	sendEvent(name:"statusHtml", value: newHtml)
+}
+
 private determineLogLevel(data) {
 	switch (data?.toUpperCase()) {
 		case "TRACE":

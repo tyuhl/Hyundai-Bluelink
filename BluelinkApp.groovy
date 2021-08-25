@@ -24,7 +24,7 @@
  * @thecloudtaylor for his excellent work on the Honeywell Home Thermostat App/Driver for Hubitat - his app was a template for this
  * App/Driver implementation.
  *
- * @Hacksore and his team for their work on Bluelinky, the nodejs app that provided functional Bluelink API calls that I studied to implement this app. This team
+ * @Hacksore and team for their work on Bluelinky, the Node.js app that provided functional Bluelink API calls that I studied to implement this app. This team
  * reverse-engineered the undocumented Bluelink API. Awesome job.
  */
 
@@ -47,7 +47,7 @@ definition(
 		namespace: "tyuhl",
 		author: "Tim Yuhl",
 		description: "Application for Hyundai Bluelink web service access.",
-		importUrl:"",
+		importUrl:"https://raw.githubusercontent.com/tyuhl/Hyundai-Bluelink/main/BluelinkApp.groovy",
 		category: "Convenience",
 		iconUrl: "",
 		iconX2Url: ""
@@ -69,6 +69,9 @@ def mainPage()
 		section(getFormat("header-blue-grad","   1.  Set Bluelink Account Information")) {
 		}
 		getAccountLink()
+		section(getFormat("item-light-grey","Account log-in")) {
+			input(name: "stay_logged_in", type: "bool", title: "Stay logged in - turn off to force logging in each time when performing actions", defaultValue: true, submitOnChange: true)
+		}
 		section(getFormat("header-blue-grad","   2.  Use This Button To Discover Vehicles and Create Drivers for Each")) {
 			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
 		}
@@ -108,6 +111,7 @@ def getAccountLink() {
 		)
 	}
 }
+
 def profilesPage()
 {
 	dynamicPage(name: "profilesPage", title: "Review/Edit Vehicle Start Options", install: false, uninstall: false) {
@@ -195,7 +199,7 @@ void installed() {
 }
 
 void updated() {
-	log("Updatedwith settings: ${settings}", "trace")
+	log("Updated with settings: ${settings}", "trace")
 	initialize()
 }
 
@@ -215,6 +219,9 @@ void initialize() {
 
 void authorize() {
 	log("authorize called", "trace")
+
+	// make sure there are no outstanding token refreshes scheduled
+	unschedule()
 
 	def headers = [
 			"client_id": client_id,
@@ -289,7 +296,10 @@ def authResponse(response)
 
 		Integer expireTime = (Integer.parseInt(reJson.expires_in) - 100)
 		log("Bluelink token refreshed successfully, Next Scheduled in: ${expireTime} sec", "debug")
-		runIn(expireTime, refreshToken)
+		// set up token refresh
+		if (stay_logged_in ) {
+			runIn(expireTime, refreshToken)
+		}
 	}
 	else
 	{
@@ -354,6 +364,10 @@ def getVehicles(Boolean retry=false)
 void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=false) {
 	log("updateVehicleOdometer called", "trace")
 
+	if( !stay_logged_in ) {
+		authorize()
+	}
+
 	def uri = global_apiURL + "/ac/v2/enrollment/details/" + user_name
 	def headers = [ access_token: state.access_token, client_id: client_id, includeNonConnectedVehicles : "Y"]
 	def params = [ uri: uri, headers: headers ]
@@ -399,6 +413,10 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 {
 	log("getVehicleStatus() called", "trace")
 
+	if( !stay_logged_in ) {
+		authorize()
+	}
+
 	//Note: this API can take up to a minute tor return if REFRESH=true because it contacts the car's modem and
 	//doesn't use cached info.
 	def uri = global_apiURL + "/ac/v2/rcs/rvs/vehicleStatus"
@@ -440,6 +458,10 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 {
 	log("getLocation() called", "trace")
+
+	if( !stay_logged_in ) {
+		authorize()
+	}
 
 	def uri = global_apiURL + '/ac/v2/rcs/rfc/findMyCar'
 	def headers = getDefaultHeaders(device)
@@ -505,6 +527,10 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 {
 	log("Start() called with profile: ${profile}", "trace")
 
+	if( !stay_logged_in ) {
+		authorize()
+	}
+
 	def uri = global_apiURL + '/ac/v2/rcs/rsc/start'
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
@@ -560,6 +586,10 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 {
 	log("Stop() called", "trace")
 
+	if( !stay_logged_in ) {
+		authorize()
+	}
+
 	def uri = global_apiURL + '/ac/v2/rcs/rsc/stop'
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
@@ -595,6 +625,10 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String urlSuffix, Boolean retry=false)
 {
 	log("LockUnlockHelper() called", "trace")
+
+	if( !stay_logged_in ) {
+		authorize()
+	}
 
 	def uri = global_apiURL + urlSuffix
 	def headers = getDefaultHeaders(device)

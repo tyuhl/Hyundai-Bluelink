@@ -32,7 +32,7 @@ metadata {
 			name: "Hyundai Bluelink Driver",
 			namespace: "tyuhl",
 			description: "Driver for accessing Hyundai Bluelink web services",
-			importUrl: "",
+			importUrl: "https://raw.githubusercontent.com/tyuhl/Hyundai-Bluelink/main/BluelinkDriver.groovy",
 			author: "Tim Yuhl")
 			{
 				capability "Switch"

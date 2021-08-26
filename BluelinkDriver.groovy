@@ -70,7 +70,7 @@ metadata {
 	preferences {
 		section("Driver Options") {
 			input("fullRefresh", "bool",
-					title: "Full refresh - Set this true to query the vehicle and not use the vehicle's cached data. Warning: Setting this option means that refreshing the data can take as much as 2 minutes.",
+					title: "Full refresh - Turn on this option to directly query the vehicle for status instead of using the vehicle's cached status. Warning: Turning on this option will result in status refreshes that can take as long as 2 minutes.",
 					defaultValue: false)
 			}
 			section("Logging") {

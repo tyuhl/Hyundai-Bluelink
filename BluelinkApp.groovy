@@ -70,7 +70,7 @@ def mainPage()
 		}
 		getAccountLink()
 		section(getFormat("item-light-grey","Account log-in")) {
-			input(name: "stay_logged_in", type: "bool", title: "Stay logged in - turn off to force logging in each time when performing actions", defaultValue: true, submitOnChange: true)
+			input(name: "stay_logged_in", type: "bool", title: "Stay logged in - turn off to force logging in before performing each action.", defaultValue: true, submitOnChange: true)
 		}
 		section(getFormat("header-blue-grad","   2.  Use This Button To Discover Vehicles and Create Drivers for Each")) {
 			input 'discover', 'button', title: 'Discover Registered Vehicles', submitOnChange: true
@@ -88,7 +88,7 @@ def mainPage()
 
 def accountInfoPage()
 {
-	dynamicPage(name: "accountInfoPage", title: "Set Bluelink Account Information", install: false, uninstall: false) {
+	dynamicPage(name: "accountInfoPage", title: "<strong>Set Bluelink Account Information</strong>", install: false, uninstall: false) {
 		section(getFormat("item-light-grey", "Username")) {
 			input name: "user_name", type: "string", title: "Bluelink Username"
 		}
@@ -114,7 +114,7 @@ def getAccountLink() {
 
 def profilesPage()
 {
-	dynamicPage(name: "profilesPage", title: "Review/Edit Vehicle Start Options", install: false, uninstall: false) {
+	dynamicPage(name: "profilesPage", title: "<strong>Review/Edit Vehicle Start Options</strong>", install: false, uninstall: false) {
 		for (int i = 0; i < 3; i++) {
 			String profileName = "Summer"
 			switch(i)
@@ -157,7 +157,7 @@ def getDebugLink() {
 				name       : 'debugHref',
 				title      : 'Debug buttons',
 				page       : 'debugPage',
-				description: 'Access debug buttons (authorize, refresh token, etc.)'
+				description: 'Access debug buttons (refresh token, initialize)'
 		)
 	}
 }
@@ -165,7 +165,7 @@ def getDebugLink() {
 def debugPage() {
 	dynamicPage(name:"debugPage", title: "Debug", install: false, uninstall: false) {
 		section {
-			paragraph "Debug buttons"
+			paragraph "<strong>Debug buttons</strong>"
 		}
 		section {
 			input 'refreshToken', 'button', title: 'Force Token Refresh', submitOnChange: true

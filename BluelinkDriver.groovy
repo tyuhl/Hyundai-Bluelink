@@ -35,7 +35,6 @@ metadata {
 			importUrl: "https://raw.githubusercontent.com/tyuhl/Hyundai-Bluelink/main/BluelinkDriver.groovy",
 			author: "Tim Yuhl")
 			{
-				capability "Switch"
 				capability "Initialize"
 				capability "Actuator"
 				capability "Sensor"

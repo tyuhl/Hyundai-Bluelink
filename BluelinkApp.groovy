@@ -216,8 +216,9 @@ void uninstalled() {
 void initialize() {
 	log("Initialize called", "trace")
 	setVersion()
-	if(!stay_logged_in) {
-		unschedule()
+	unschedule()
+	if(stay_logged_in && (state.refresh_token != null)) {
+		refreshToken()
 	}
 }
 

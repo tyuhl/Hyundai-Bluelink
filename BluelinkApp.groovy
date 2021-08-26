@@ -195,6 +195,7 @@ def appButtonHandler(btn) {
 
 void installed() {
 	log("Installed with settings: ${settings}", "trace")
+	stay_logged_in = true // initialized to ensure token refresh happens with default setting
 	initialize()
 }
 
@@ -213,8 +214,11 @@ void uninstalled() {
 }
 
 void initialize() {
+	log("Initialize called", "trace")
 	setVersion()
-	unschedule()
+	if(!stay_logged_in) {
+		unschedule()
+	}
 }
 
 void authorize() {
@@ -297,7 +301,7 @@ def authResponse(response)
 		Integer expireTime = (Integer.parseInt(reJson.expires_in) - 100)
 		log("Bluelink token refreshed successfully, Next Scheduled in: ${expireTime} sec", "debug")
 		// set up token refresh
-		if (stay_logged_in ) {
+		if (stay_logged_in) {
 			runIn(expireTime, refreshToken)
 		}
 	}

@@ -6,7 +6,7 @@ _This applcation and driver is released under the M.I.T. license. Use at your ow
 
 **What is it?**
 
-Hyundai Bluelink® is a connected vehicle service that remotely collects telemetrics and allows users to issue commands to vehicles that support the service and are registered. Most recent Hyundai vehicles include support for Bluelink. Bluelink is implemented with server-based web services.  This package interfaces with those web services to enable Hubitat users to do things such as remotely lock or unlock their cars or remotely start the vehicle. The Hyundai Bluelink Integration package consists of a user  application and driver.
+Hyundai Bluelink® is a connected vehicle service that remotely collects telemetrics and allows users to issue commands to vehicles that support the service and are registered. Bluelink is implemented with server-based web services.  This package interfaces with those web services to enable Hubitat users to do things such as remotely lock or unlock their cars or remotely start the vehicle. The Hyundai Bluelink Integration package consists of a user  application and driver.
 
 **Using this package, users can remotely:**
 

@@ -17,6 +17,7 @@
  *
  *  History:
  *  8/14/21 - Initial work.
+ *  9/17/21 - Add some events
  *
  *
  * Special thanks to:
@@ -484,6 +485,7 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 			log("reJson: ${reJson}", "debug")
 			if (reCode == 200) {
 				log("getLocation successful.","info")
+				sendEventHelper(device, "Location", true)
 			}
 			if( reJson.coord != null) {
 				sendEvent(device, [name: 'locLatitude', value: reJson.coord.lat])
@@ -501,8 +503,10 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
 			getLocation(device, true)
+			return
 		}
 		log("getLocation failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		sendEventHelper(device, "Location", false)
 	}
 }
 
@@ -511,9 +515,11 @@ void Lock(com.hubitat.app.DeviceWrapper device)
 	if( !LockUnlockHelper(device, '/ac/v2/rcs/rdo/off') )
 	{
 		log("Lock call failed -- try waiting before retrying", "info")
+		sendEventHelper(device, "Lock", false)
 	} else
 	{
 		log("Lock call made to car -- can take some time to lock", "info")
+		sendEventHelper(device, "Lock", true)
 	}
 }
 
@@ -522,9 +528,11 @@ void Unlock(com.hubitat.app.DeviceWrapper device)
 	if( !LockUnlockHelper(device, '/ac/v2/rcs/rdo/on') )
 	{
 		log("Unlock call failed -- try waiting before retrying", "info")
+		sendEventHelper(device, "Unlock", false)
 	}else
 	{
 		log("Unlock call made to car -- can take some time to unock", "info")
+		sendEventHelper(device, "Unlock", true)
 	}
 }
 
@@ -572,6 +580,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 			reCode = response.getStatus()
 			if (reCode == 200) {
 				log("Vehicle ${theCar} successfully started.","info")
+				sendEventHelper(device, "Start", true)
 			}
 		}
 	}
@@ -582,8 +591,10 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
 			Start(device, profile,true)
+			return
 		}
 		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		sendEventHelper(device, "Start", false)
 	}
 }
 
@@ -609,6 +620,7 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 			reCode = response.getStatus()
 			if (reCode == 200) {
 				log("Vehicle ${theCar} successfully stopped.","info")
+				sendEventHelper(device, "Stop", true)
 			}
 		}
 	}
@@ -619,14 +631,25 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
 			Stop(device, true)
+			return
 		}
 		log("Stop vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		sendEventHelper(device, "Stop", false)
 	}
 }
 
 ///
 // Supporting helpers
 ///
+private void sendEventHelper(com.hubitat.app.DeviceWrapper device, String sentCommand, Boolean result)
+{
+	log("sendEventHelper() called", "trace")
+	String strResult = result ? "successfully sent to vehicle" : "sent to vehicle - error returned"
+	String strDesc = "Command ${sentCommand} ${strResult}"
+	String strVal = result ? "Successful" : "Error"
+	sendEvent(device, [name: sentCommand, value: strVal, descriptionText: strDesc, isStateChange: true])
+}
+
 private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String urlSuffix, Boolean retry=false)
 {
 	log("LockUnlockHelper() called", "trace")

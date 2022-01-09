@@ -269,9 +269,8 @@ void refreshToken(Boolean refresh=false) {
 		}
 		catch (java.net.SocketTimeoutException e)
 		{
-			def reCode = e.getStatusCode()
 			if (!refresh) {
-				log("Socket timeout exception with code: ${reCode}, will retry refresh token", "info")
+				log("Socket timeout exception, will retry refresh token", "info")
 				refreshToken(true)
 			}
 		}
@@ -300,7 +299,7 @@ def authResponse(response)
 		state.access_token = reJson.access_token
 		state.refresh_token = reJson.refresh_token
 
-		Integer expireTime = (Integer.parseInt(reJson.expires_in) - 100)
+		Integer expireTime = (Integer.parseInt(reJson.expires_in) - 180)
 		log("Bluelink token refreshed successfully, Next Scheduled in: ${expireTime} sec", "debug")
 		// set up token refresh
 		if (stay_logged_in) {

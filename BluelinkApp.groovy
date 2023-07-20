@@ -18,6 +18,7 @@
  *  History:
  *  8/14/21 - Initial work.
  *  9/17/21 - Add some events
+ *  7/20/23 - Bug fix: authorization and token refresh stopped working
  *
  *
  * Special thanks to:
@@ -33,10 +34,10 @@ import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.0" }
+static String appVersion()   { return "1.0.1" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.0"
+	state.version = "1.0.1"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -241,7 +242,7 @@ void authorize() {
 
 	try
 	{
-		httpPost(params) { response -> authResponse(response) }
+		httpPostJson(params) { response -> authResponse(response) }
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
@@ -265,7 +266,7 @@ void refreshToken(Boolean refresh=false) {
 
 		try
 		{
-			httpPost(params) { response -> authResponse(response) }
+			httpPostJson(params) { response -> authResponse(response) }
 		}
 		catch (java.net.SocketTimeoutException e)
 		{
@@ -276,7 +277,15 @@ void refreshToken(Boolean refresh=false) {
 		}
 		catch (groovyx.net.http.HttpResponseException e)
 		{
-			log("Login failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+			// could be authorization has been lost, try again after authorizing again
+			if (!refresh) {
+				log("Authoriztion may have been lost, will retry refreshing token after reauthorizing", "info")
+				authorize()
+				refreshToken(true)
+			}
+			else {
+				log("refreshToken failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+			}
 		}
 	}
 	else

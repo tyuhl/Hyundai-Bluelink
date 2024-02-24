@@ -58,10 +58,20 @@ metadata {
 				attribute "locAltitude", "string"
 				attribute "locUpdateTime", "string"
 				attribute "statusHtml", "string"
+				attribute "ModemType", "string"
+				attribute "Vehicle.Color", "string"
+				attribute "HMA-Model", "string"
+				attribute "OdometerUpdateDate", "string"
+				attribute "Year", "string"
+				attribute "Make", "string"
+				attribute "Model", "string"
+				attribute "Trim", "string"
+				attribute "IsEV", "string"
+				attribute "TransmissionType", "string"
 
 				command "Lock"
 				command "Unlock"
-				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Profile3"]] ]
+				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "JustStart"]] ]
 				command "Stop"
 				command "Location"
 			}

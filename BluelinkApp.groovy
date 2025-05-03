@@ -19,6 +19,7 @@
  *  8/14/21 - Initial work.
  *  9/17/21 - Add some events
  *  7/20/23 - Bug fix: authorization and token refresh stopped working
+ *  5/2/25  - Improve debug logging, add attributes
  *
  *
  * Special thanks to:
@@ -32,12 +33,13 @@
 
 import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
+import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.1" }
+static String appVersion()   { return "1.0.2" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.1"
+	state.version = "1.0.2"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -338,7 +340,7 @@ def getVehicles(Boolean retry=false)
 			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
-			log("reJson: ${reJson}", "debug")
+			logJsonHelper("getVehicles", reJson)
 		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
@@ -375,7 +377,8 @@ def getVehicles(Boolean retry=false)
 	}
 }
 
-void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=false) {
+void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=false) 
+{
 	log("updateVehicleOdometer called", "trace")
 
 	if( !stay_logged_in ) {
@@ -395,7 +398,7 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
-			log("reJson: ${reJson}", "debug")
+			logJsonHelper("updateVehicleOdometer", reJson)
 		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
@@ -418,7 +421,8 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 		reJson.enrolledVehicleDetails.each{ vehicle ->
 				if(vehicle.vehicleDetails.vin == theVIN) {
 					sendEvent(device, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
-			}
+					sendEvent(device, [name: "isEV", value: vehicle.vehicleDetails.evStatus == 'Y'])
+				}
 		}
 	}
 }
@@ -449,12 +453,15 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 			def reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
-			log("reJson: ${reJson}", "debug")
+			logJsonHelper("getVehicleStatus", reJson)
 		}
+
 		// Update relevant device attributes
 		sendEvent(device, [name: 'Engine', value: reJson.vehicleStatus.engine ? 'On' : 'Off'])
 		sendEvent(device, [name: 'DoorLocks', value: reJson.vehicleStatus.doorLock ? 'Locked' : 'Unlocked'])
+		sendEvent(device, [name: 'Hood', value: reJson.vehicleStatus.hoodOpen ? 'Open' : 'Closed'])
 		sendEvent(device, [name: 'Trunk', value: reJson.vehicleStatus.trunkOpen ? 'Open' : 'Closed'])
+		sendEvent(device, [name: "BatterySoC", value: reJson.vehicleStatus.battery.batSoc])
 		sendEvent(device, [name: "LastRefreshTime", value: reJson.vehicleStatus.dateTime])
 	}
 	catch (groovyx.net.http.HttpResponseException e)
@@ -490,15 +497,17 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 			int reCode = response.getStatus()
 			reJson = response.getData()
 			log("reCode: ${reCode}", "debug")
-			log("reJson: ${reJson}", "debug")
+			logJsonHelper("getLocation", reJson)
 			if (reCode == 200) {
 				log("getLocation successful.","info")
 				sendEventHelper(device, "Location", true)
 			}
 			if( reJson.coord != null) {
+				//convert altitude from m to ft
+				def theAlt = reJson.coord.alt * 3.28084
 				sendEvent(device, [name: 'locLatitude', value: reJson.coord.lat])
 				sendEvent(device, [name: 'locLongitude', value: reJson.coord.lon])
-				sendEvent(device, [name: 'locAltitude', value: reJson.coord.alt])
+				sendEvent(device, [name: 'locAltitude', value: theAlt])
 				sendEvent(device, [name: 'locSpeed', value: reJson.speed.value])
 				sendEvent(device, [name: 'locUpdateTime', value: reJson.time])
 			}
@@ -833,4 +842,13 @@ def getFormat(type, myText="") {
 	if(type == "line") return "<hr style='background-color:#1A77C9; height: 1px; border: 0;'>"
 	if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"
 }
+
+private void logJsonHelper(String api_call, LinkedHashMap input)
+{
+	if (settings?.logging ?: "DEBUG") {
+		String strJson = JsonOutput.prettyPrint(new JSONObject(input).toString())
+		log("${api_call} - reJson: ${strJson}", "debug")
+	}
+}
+
 

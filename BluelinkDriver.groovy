@@ -18,13 +18,13 @@
  *
  *  History:
  *  8/14/21 - Initial work.
- *
+ *  5/2/25  - Added additional attributes
  */
 
-String appVersion()   { return "1.0.0" }
+String appVersion()   { return "1.0.1" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.0"
+	state.version = "1.0.1"
 }
 
 metadata {
@@ -50,12 +50,15 @@ metadata {
 				attribute "brandIndicator", "string"
 				attribute "Engine", "string"
 				attribute "DoorLocks", "string"
+				attribute "Hood", "string"
 				attribute "Trunk", "string"
 				attribute "LastRefreshTime", "string"
 				attribute "locLatitude", "string"
 				attribute "locLongitude", "string"
 				attribute "locSpeed", "string"
 				attribute "locAltitude", "string"
+				attribute "isEV", "string"
+				attribute "BatterySoC", "string"
 				attribute "locUpdateTime", "string"
 				attribute "statusHtml", "string"
 

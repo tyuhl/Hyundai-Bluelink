@@ -160,6 +160,8 @@ private void updateHtml()
 	builder << "<table class=\"bldr-tbl\">"
 	String statDoors = device.currentValue("DoorLocks")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Doors:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statDoors + "</td></tr>"
+	String statHood = device.currentValue("Hood")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Hood:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statHood + "</td></tr>"
 	String statTrunk = device.currentValue("Trunk")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Trunk:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statTrunk + "</td></tr>"
 	String statEngine = device.currentValue("Engine")

@@ -60,7 +60,7 @@ metadata {
 				attribute "isEV", "string"
 				attribute "BatterySoC", "string"
 				attribute "locUpdateTime", "string"
-				attribute "EVBatteryStatus", "string"
+				attribute "EVBattery", "string"
 				attribute "EVRange", "string"
 				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
@@ -170,6 +170,8 @@ private void updateHtml()
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Trunk:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statTrunk + "</td></tr>"
 	String statEngine = device.currentValue("Engine")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Engine:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statEngine + "</td></tr>"
+	String statRange = device.currentValue("Range")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Range:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statRange + " miles</td></tr>"
 	builder << "</table>"
 	String newHtml = builder.toString()
 	sendEvent(name:"statusHtml", value: newHtml)

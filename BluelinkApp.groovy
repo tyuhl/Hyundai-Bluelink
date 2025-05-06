@@ -20,6 +20,7 @@
  *  9/17/21 - Add some events
  *  7/20/23 - Bug fix: authorization and token refresh stopped working
  *  5/2/25  - Improve debug logging, add attributes
+ *  5/5/25  - Bug fix, add attributes, add some EV support
  *
  *
  * Special thanks to:
@@ -36,10 +37,10 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.2" }
+static String appVersion()   { return "1.0.3" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.2"
+	state.version = "1.0.3"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -421,7 +422,6 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 		reJson.enrolledVehicleDetails.each{ vehicle ->
 				if(vehicle.vehicleDetails.vin == theVIN) {
 					sendEvent(device, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
-					sendEvent(device, [name: "isEV", value: vehicle.vehicleDetails.evStatus == 'Y'])
 				}
 		}
 	}
@@ -457,12 +457,20 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		}
 
 		// Update relevant device attributes
+		def isEV = (reJson.vehicleStatus.evStatus != null)
 		sendEvent(device, [name: 'Engine', value: reJson.vehicleStatus.engine ? 'On' : 'Off'])
 		sendEvent(device, [name: 'DoorLocks', value: reJson.vehicleStatus.doorLock ? 'Locked' : 'Unlocked'])
 		sendEvent(device, [name: 'Hood', value: reJson.vehicleStatus.hoodOpen ? 'Open' : 'Closed'])
 		sendEvent(device, [name: 'Trunk', value: reJson.vehicleStatus.trunkOpen ? 'Open' : 'Closed'])
+		sendEvent(device, [name: "Range", value: reJson.vehicleStatus.dte.value])
 		sendEvent(device, [name: "BatterySoC", value: reJson.vehicleStatus.battery.batSoc])
 		sendEvent(device, [name: "LastRefreshTime", value: reJson.vehicleStatus.dateTime])
+		sendEvent(device, [name: "TirePressureWarning", value: (reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll ? "true" : "false")])
+		sendEvent(device, [name: "isEV", value: isEV])
+		if (isEV){
+			sendEvent(device, [name: "EVBattery", value: reJson.vehicleStatus.evStatus.batteryStatus])
+			sendEvent(device, [name: "EVRange", value: reJson.vehicleStatus.evStatus.evModeRange.value])
+		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
@@ -845,7 +853,7 @@ def getFormat(type, myText="") {
 
 private void logJsonHelper(String api_call, LinkedHashMap input)
 {
-	if (settings?.logging ?: "DEBUG") {
+	if (determineLogLevel("DEBUG") >= determineLogLevel(settings?.logging ?: "TRACE")){
 		String strJson = JsonOutput.prettyPrint(new JSONObject(input).toString())
 		log("${api_call} - reJson: ${strJson}", "debug")
 	}

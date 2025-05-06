@@ -19,12 +19,13 @@
  *  History:
  *  8/14/21 - Initial work.
  *  5/2/25  - Added additional attributes
+ *  5/5/25  - Added additional attributes and some EV support
  */
 
-String appVersion()   { return "1.0.1" }
+String appVersion()   { return "1.0.2" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.1"
+	state.version = "1.0.2"
 }
 
 metadata {
@@ -57,9 +58,13 @@ metadata {
 				attribute "locLongitude", "string"
 				attribute "locSpeed", "string"
 				attribute "locAltitude", "string"
+				attribute "Range", "string"
 				attribute "isEV", "string"
 				attribute "BatterySoC", "string"
 				attribute "locUpdateTime", "string"
+				attribute "EVBatteryStatus", "string"
+				attribute "EVRange", "string"
+				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
 
 				command "Lock"
@@ -95,6 +100,7 @@ void installed()
 void updated()
 {
 	log("updated() called", "trace")
+	setVersion()
 	initialize()
 }
 

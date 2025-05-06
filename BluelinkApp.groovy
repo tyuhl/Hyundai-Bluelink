@@ -469,7 +469,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		sendEvent(device, [name: "isEV", value: isEV])
 		if (isEV){
 			sendEvent(device, [name: "EVBattery", value: reJson.vehicleStatus.evStatus.batteryStatus])
-			sendEvent(device, [name: "EVRange", value: reJson.vehicleStatus.evStatus.drvDistance.evModeRange.value])
+			sendEvent(device, [name: "EVRange", value: reJson.vehicleStatus.evStatus.drvDistance.rangeByFuel.evModeRange.value])
 		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)

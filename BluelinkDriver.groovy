@@ -56,8 +56,6 @@ metadata {
 				attribute "LastRefreshTime", "string"
 				attribute "locLatitude", "string"
 				attribute "locLongitude", "string"
-				attribute "locSpeed", "string"
-				attribute "locAltitude", "string"
 				attribute "Range", "string"
 				attribute "isEV", "string"
 				attribute "BatterySoC", "string"

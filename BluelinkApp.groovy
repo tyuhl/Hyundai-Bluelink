@@ -515,8 +515,6 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 				def theAlt = reJson.coord.alt * 3.28084
 				sendEvent(device, [name: 'locLatitude', value: reJson.coord.lat])
 				sendEvent(device, [name: 'locLongitude', value: reJson.coord.lon])
-				sendEvent(device, [name: 'locAltitude', value: theAlt])
-				sendEvent(device, [name: 'locSpeed', value: reJson.speed.value])
 				sendEvent(device, [name: 'locUpdateTime', value: reJson.time])
 			}
 		}

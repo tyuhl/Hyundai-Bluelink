@@ -37,10 +37,10 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.3" }
+static String appVersion()   { return "1.0.4" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.3"
+	state.version = "1.0.4"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -365,14 +365,14 @@ def getVehicles(Boolean retry=false)
 				def newDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
 				if (newDevice != null) {
 					//populate attributes
-					sendEvent(newDevice, [name: "NickName", value:  vehicle.vehicleDetails.nickName])
-					sendEvent(newDevice, [name: "VIN", value:  vehicle.vehicleDetails.vin])
-					sendEvent(newDevice, [name: "RegId", value:  vehicle.vehicleDetails.regid])
-					sendEvent(newDevice, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
-					sendEvent(newDevice, [name: "Model", value:  vehicle.vehicleDetails.series])
-					sendEvent(newDevice, [name: "Trim", value:  vehicle.vehicleDetails.trim])
-					sendEvent(newDevice, [name: "vehicleGeneration", value:  vehicle.vehicleDetails.vehicleGeneration])
-					sendEvent(newDevice, [name: "brandIndicator", value:  vehicle.vehicleDetails.brandIndicator])
+					safeSendEvent(newDevice, "NickName", vehicle.vehicleDetails.nickName)
+					safeSendEvent(newDevice, "VIN", vehicle.vehicleDetails.vin)
+					safeSendEvent(newDevice, "RegId", vehicle.vehicleDetails.regid)
+					safeSendEvent(newDevice, "Odometer", vehicle.vehicleDetails.odometer)
+					safeSendEvent(newDevice, "Model", vehicle.vehicleDetails.series)
+					safeSendEvent(newDevice, "Trim", vehicle.vehicleDetails.trim)
+					safeSendEvent(newDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
+					safeSendEvent(newDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
 				 }
 			}
 	}
@@ -421,7 +421,7 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 		String theVIN = device.currentValue("VIN")
 		reJson.enrolledVehicleDetails.each{ vehicle ->
 				if(vehicle.vehicleDetails.vin == theVIN) {
-					sendEvent(device, [name: "Odometer", value:  vehicle.vehicleDetails.odometer])
+					safeSendEvent(device, "Odometer", vehicle.vehicleDetails.odometer)
 				}
 		}
 	}
@@ -458,18 +458,18 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 
 		// Update relevant device attributes
 		def isEV = (reJson.vehicleStatus.evStatus != null)
-		sendEvent(device, [name: 'Engine', value: reJson.vehicleStatus.engine ? 'On' : 'Off'])
-		sendEvent(device, [name: 'DoorLocks', value: reJson.vehicleStatus.doorLock ? 'Locked' : 'Unlocked'])
-		sendEvent(device, [name: 'Hood', value: reJson.vehicleStatus.hoodOpen ? 'Open' : 'Closed'])
-		sendEvent(device, [name: 'Trunk', value: reJson.vehicleStatus.trunkOpen ? 'Open' : 'Closed'])
-		sendEvent(device, [name: "Range", value: reJson.vehicleStatus.dte.value])
-		sendEvent(device, [name: "BatterySoC", value: reJson.vehicleStatus.battery.batSoc])
-		sendEvent(device, [name: "LastRefreshTime", value: reJson.vehicleStatus.dateTime])
-		sendEvent(device, [name: "TirePressureWarning", value: (reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll ? "true" : "false")])
+		safeSendEvent(device, 'Engine', reJson.vehicleStatus.engine, 'On', 'Off')
+		safeSendEvent(device, 'DoorLocks', reJson.vehicleStatus.doorLock, 'Locked', 'Unlocked')
+		safeSendEvent(device, 'Hood', reJson.vehicleStatus.hoodOpen, 'Open', 'Closed')
+		safeSendEvent(device, 'Trunk', reJson.vehicleStatus.trunkOpen, 'Open', 'Closed')
+		safeSendEvent(device, "Range", reJson.vehicleStatus.dte.value)
+		safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
+		safeSendEvent(device, "LastRefreshTime", reJson.vehicleStatus.dateTime)
+		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
 		sendEvent(device, [name: "isEV", value: isEV])
 		if (isEV){
-			sendEvent(device, [name: "EVBattery", value: reJson.vehicleStatus.evStatus.batteryStatus])
-			sendEvent(device, [name: "EVRange", value: reJson.vehicleStatus.evStatus.drvDistance[0].rangeByFuel.evModeRange.value])
+			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)
+			safeSendEvent(device, "EVRange", reJson.vehicleStatus.evStatus.drvDistance[0].rangeByFuel.evModeRange.value)
 		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
@@ -513,9 +513,9 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 			if( reJson.coord != null) {
 				//convert altitude from m to ft
 				def theAlt = reJson.coord.alt * 3.28084
-				sendEvent(device, [name: 'locLatitude', value: reJson.coord.lat])
-				sendEvent(device, [name: 'locLongitude', value: reJson.coord.lon])
-				sendEvent(device, [name: 'locUpdateTime', value: reJson.time])
+				safeSendEvent(device, 'locLatitude', reJson.coord.lat)
+				safeSendEvent(device, 'locLongitude', reJson.coord.lon)
+				safeSendEvent(device, 'locUpdateTime', reJson.time)
 			}
 		}
 	}
@@ -857,4 +857,24 @@ private void logJsonHelper(String api_call, LinkedHashMap input)
 	}
 }
 
+private void safeSendEvent(com.hubitat.app.DeviceWrapper device, String attrib, def val, def valTrue = null, def valFalse = null)
+{
+	if (val == null) {
+		log(" *** Attribute: ${attrib} JSON value is null", "debug")
+	}
+	else {
+		if (valTrue && valFalse) 
+		{
+			sendEvent(device, [name: attrib, value: val ? valTrue : valFalse])
+		} 
+		else if ((valTrue == null) && (valFalse == null)) 
+		{
+			sendEvent(device, [name: attrib, value: val])
+		}
+		else
+		{
+			log("SafeSendEvent programming error - missing argument value", "error")
+		}
+	}
+}
 

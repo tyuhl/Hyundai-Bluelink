@@ -21,6 +21,7 @@
  *  7/20/23 - Bug fix: authorization and token refresh stopped working
  *  5/2/25  - Improve debug logging, add attributes
  *  5/5/25  - Bug fix, add attributes, add some EV support
+ *  5/8/25 - Refactoring to make more robust for missing JSON data - v1.04
  *
  *
  * Special thanks to:

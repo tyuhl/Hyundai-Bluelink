@@ -26,13 +26,18 @@ Hyundai Bluelink® is a connected vehicle service that remotely collects telemet
 **Notes on Use:**
 
 1. Please do not make excessive API calls. Hyundai monitors usage and may choose to restrict your account if you make too many remote calls.
-2. Some calls can take several secornds to complete (like Refresh). There is an option in the driver to call Refresh to read cached status (the default). Using cached data is quite fast, but data may be out of date if the vehicle has been sitting unused. Turning on the "Full Refresh" option will bypass the cache and contact the vehicle to refresh the data. "Full Refresh" commands can take up to 2 minutes, versus refresh commands that use the cached data.
+2. Some calls can take several secornds to complete (like Location). There is an option in the driver to call Refresh to read cached status (the default). Using cached data is quite fast, but data may be out of date if the vehicle has been sitting unused. Turning on the "Full Refresh" option will bypass the cache and contact the vehicle to refresh the data. "Full Refresh" commands can take up to 2 minutes, versus refresh commands that use the cached data.
 3. Remote Start will fail if your vehicle is unlocked and it may not be logged as a failure.
+
+**Known Vehicle Models That Have Been Tested With This App**
+
+1. Hyundai Palisade
+2. Hyundai Ioniq 5 (Thanks, lotussteve for helping out)
 
 **Current Limitations**
 
 1. Only U.S. vehicles that have Bluelink are currently supported.
-2. Electric vehicles are not supported.
+2. Has not be tested wih hybrid vehicles
 3. Do not become too dependent on this package. It is based on an undocumented API and could stop working at any time.
 4. Currently, this package is not available for installation using Hubitat Package Manager. If there is enough interest in this package, I'll add it to HPM.
 

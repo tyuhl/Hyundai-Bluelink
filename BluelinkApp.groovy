@@ -22,6 +22,7 @@
  *  5/2/25  - Improve debug logging, add attributes
  *  5/5/25  - Bug fix, add attributes, add some EV support
  *  5/8/25 - Refactoring to make more robust for missing JSON data - v1.04
+ *  5/10/25 - Add EVBatteryCharging attribute
  *
  *
  * Special thanks to:
@@ -38,10 +39,10 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.4" }
+static String appVersion()   { return "1.0.5" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.4"
+	state.version = "1.0.5"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -469,6 +470,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
 		sendEvent(device, [name: "isEV", value: isEV])
 		if (isEV){
+			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
 			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)
 			safeSendEvent(device, "EVRange", reJson.vehicleStatus.evStatus.drvDistance[0].rangeByFuel.evModeRange.value)
 		}

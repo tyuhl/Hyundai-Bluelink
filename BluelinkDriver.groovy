@@ -20,12 +20,13 @@
  *  8/14/21 - Initial work.
  *  5/2/25  - Added additional attributes
  *  5/5/25  - Added additional attributes and some EV support
+ *  10/10/25 - Added some EV attributes and an EV status HTML attribute
  */
 
-String appVersion()   { return "1.0.2" }
+String appVersion()   { return "1.0.3" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.2"
+	state.version = "1.0.3"
 }
 
 metadata {
@@ -61,9 +62,11 @@ metadata {
 				attribute "BatterySoC", "string"
 				attribute "locUpdateTime", "string"
 				attribute "EVBattery", "string"
+				attribute "EVBatteryCharging", "string"
 				attribute "EVRange", "string"
 				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
+				attribute "EVstatusHtml", "string"
 
 				command "Lock"
 				command "Unlock"
@@ -160,6 +163,8 @@ void Location()
 ///
 private void updateHtml()
 {
+	Boolean isEV = device.currentValue("isEV") == "true"
+	//regular statusHtml
 	def builder = new StringBuilder()
 	builder << "<table class=\"bldr-tbl\">"
 	String statDoors = device.currentValue("DoorLocks")
@@ -175,6 +180,21 @@ private void updateHtml()
 	builder << "</table>"
 	String newHtml = builder.toString()
 	sendEvent(name:"statusHtml", value: newHtml)
+	//EV stuff
+	if (isEV) 
+	{
+		def builder2 = new StringBuilder()
+		builder2 << "<table class=\"bldr2-tbl\">"
+		String evBattery = device.currentValue("EVBattery")
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + evBattery + " %" + "</td></tr>"
+		String statCharging = (device.currentValue("EVBatteryCharging") == "true") ? "Yes" : "No"
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery Charging:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statCharging + "</td></tr>"
+		String statEVRange = device.currentValue("EVRange")
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + " EV Range:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statEVRange + " miles</td></tr>"
+		builder2 << "</table>"
+		String EVHtml = builder2.toString()
+		sendEvent(name:"EVstatusHtml", value: EVHtml)
+	}
 }
 
 private determineLogLevel(data) {

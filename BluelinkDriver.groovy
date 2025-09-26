@@ -30,48 +30,59 @@ def setVersion(){
 metadata {
 	definition(
 			name: "Hyundai Bluelink Driver",
-			namespace: "tyuhl",
+			namespace: "D3ADCRU7R",
 			description: "Driver for accessing Hyundai Bluelink web services",
 			importUrl: "https://raw.githubusercontent.com/tyuhl/Hyundai-Bluelink/main/BluelinkDriver.groovy",
-			author: "Tim Yuhl")
+			author: "Tim Yuhl & Coltonton")
 			{
 				capability "Initialize"
 				capability "Actuator"
 				capability "Sensor"
 				capability "Refresh"
 
+				attribute "IsEV", "string"
 				attribute "NickName", "string"
-				attribute "VIN", "string"
+				attribute "Color", "string"
+				attribute "Vehicle.Color", "string"
+				attribute "Year", "string"
+				attribute "Make", "string"
+				attribute "brandIndicator", "string"
 				attribute "Model", "string"
+				attribute "HMA-Model", "string"
 				attribute "Trim", "string"
+				attribute "TransmissionType", "string"
+				attribute "VIN", "string"
+				attribute "vehicleGeneration", "string"
 				attribute "RegId", "string"
 				attribute "Odometer", "string"
-				attribute "vehicleGeneration", "string"
-				attribute "brandIndicator", "string"
+				attribute "OdometerUpdateDate", "string"
 				attribute "Engine", "string"
 				attribute "DoorLocks", "string"
 				attribute "Trunk", "string"
+				attribute "LowOilLevel", "string"
+				attribute "LowWasherFluid", "string"
+				attribute "Range", "string"
+				attribute "FuelLevel", "string"
+				attribute "LowFuel", "string"
+				attribute "LowBrakeFluid", "string"
+				attribute "FL-TPMS", "string"
+				attribute "FR-TPMS", "string"
+				attribute "RL-TPMS", "string"
+				attribute "RR-TPMS", "string"
+				attribute "KeyBattery", "string"
 				attribute "LastRefreshTime", "string"
 				attribute "locLatitude", "string"
 				attribute "locLongitude", "string"
 				attribute "locSpeed", "string"
 				attribute "locAltitude", "string"
 				attribute "locUpdateTime", "string"
-				attribute "statusHtml", "string"
 				attribute "ModemType", "string"
-				attribute "Vehicle.Color", "string"
-				attribute "HMA-Model", "string"
-				attribute "OdometerUpdateDate", "string"
-				attribute "Year", "string"
-				attribute "Make", "string"
-				attribute "Model", "string"
-				attribute "Trim", "string"
-				attribute "IsEV", "string"
-				attribute "TransmissionType", "string"
+				attribute "statusHtml", "string"
+				
 
 				command "Lock"
 				command "Unlock"
-				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "JustStart"]] ]
+				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Just Start"]] ]
 				command "Stop"
 				command "Location"
 			}
@@ -223,4 +234,3 @@ def log(Object data, String type) {
 		}
 	}
 }
-

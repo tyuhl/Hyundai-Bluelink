@@ -18,13 +18,15 @@
  *
  *  History:
  *  8/14/21 - Initial work.
- *
+ *  5/2/25  - Added additional attributes
+ *  5/5/25  - Added additional attributes and some EV support
+ *  10/10/25 - Added some EV attributes and an EV status HTML attribute
  */
 
-String appVersion()   { return "1.0.0" }
+String appVersion()   { return "1.0.3" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.0"
+	state.version = "1.0.3"
 }
 
 metadata {
@@ -78,7 +80,6 @@ metadata {
 				attribute "locUpdateTime", "string"
 				attribute "ModemType", "string"
 				attribute "statusHtml", "string"
-				
 
 				command "Lock"
 				command "Unlock"
@@ -113,6 +114,7 @@ void installed()
 void updated()
 {
 	log("updated() called", "trace")
+	setVersion()
 	initialize()
 }
 
@@ -174,17 +176,38 @@ void Location()
 ///
 private void updateHtml()
 {
+	Boolean isEV = device.currentValue("isEV") == "true"
+	//regular statusHtml
 	def builder = new StringBuilder()
 	builder << "<table class=\"bldr-tbl\">"
 	String statDoors = device.currentValue("DoorLocks")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Doors:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statDoors + "</td></tr>"
+	String statHood = device.currentValue("Hood")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Hood:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statHood + "</td></tr>"
 	String statTrunk = device.currentValue("Trunk")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Trunk:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statTrunk + "</td></tr>"
 	String statEngine = device.currentValue("Engine")
 	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Engine:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statEngine + "</td></tr>"
+	String statRange = device.currentValue("Range")
+	builder << "<tr><td class=\"bldr-label\" style=\"text-align:left;\">" + "Range:" + "</td><td class=\"bldr-text\" style=\"text-align:left;padding-left:5px\">" + statRange + " miles</td></tr>"
 	builder << "</table>"
 	String newHtml = builder.toString()
 	sendEvent(name:"statusHtml", value: newHtml)
+	//EV stuff
+	if (isEV) 
+	{
+		def builder2 = new StringBuilder()
+		builder2 << "<table class=\"bldr2-tbl\">"
+		String evBattery = device.currentValue("EVBattery")
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + evBattery + " %" + "</td></tr>"
+		String statCharging = (device.currentValue("EVBatteryCharging") == "true") ? "Yes" : "No"
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery Charging:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statCharging + "</td></tr>"
+		String statEVRange = device.currentValue("EVRange")
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + " EV Range:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statEVRange + " miles</td></tr>"
+		builder2 << "</table>"
+		String EVHtml = builder2.toString()
+		sendEvent(name:"EVstatusHtml", value: EVHtml)
+	}
 }
 
 private determineLogLevel(data) {

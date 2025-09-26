@@ -810,7 +810,7 @@ private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String
 	com.hubitat.app.ChildDeviceWrapper newDevice = null
 	try {
 			newDevice = addChildDevice(
-				'tyuhl',
+				'D3ADCRU7R',
 				'Hyundai Bluelink Driver',
 				vehicleNetId,
 				[

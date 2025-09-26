@@ -32,7 +32,7 @@ metadata {
 			name: "Hyundai Bluelink Driver",
 			namespace: "D3ADCRU7R",
 			description: "Driver for accessing Hyundai Bluelink web services",
-			importUrl: "https://raw.githubusercontent.com/tyuhl/Hyundai-Bluelink/main/BluelinkDriver.groovy",
+			importUrl: "https://raw.githubusercontent.com/coltonton/Hubitat-Hyundai-Bluelink/main/BluelinkDriver.groovy",
 			author: "Tim Yuhl & Coltonton")
 			{
 				capability "Initialize"

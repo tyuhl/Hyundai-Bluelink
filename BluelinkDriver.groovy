@@ -63,6 +63,7 @@ metadata {
 				attribute "locUpdateTime", "string"
 				attribute "EVBattery", "string"
 				attribute "EVBatteryCharging", "string"
+				attribute "EVBatteryPluggedIn", "string"
 				attribute "EVRange", "string"
 				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
@@ -187,6 +188,8 @@ private void updateHtml()
 		builder2 << "<table class=\"bldr2-tbl\">"
 		String evBattery = device.currentValue("EVBattery")
 		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + evBattery + " %" + "</td></tr>"
+		String statPluggedIn = (device.currentValue("EVBatteryPluggedIn") == "true") ? "Yes" : "No"
+		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery Plugged In:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statPluggedIn + "</td></tr>"
 		String statCharging = (device.currentValue("EVBatteryCharging") == "true") ? "Yes" : "No"
 		builder2 << "<tr><td class=\"bldr2-label\" style=\"text-align:left;\">" + "Battery Charging:" + "</td><td class=\"bldr2-text\" style=\"text-align:left;padding-left:5px\">" + statCharging + "</td></tr>"
 		String statEVRange = device.currentValue("EVRange")

@@ -23,7 +23,8 @@
  *  5/5/25  - Bug fix, add attributes, add some EV support
  *  5/8/25 - Refactoring to make more robust for missing JSON data - v1.04
  *  5/10/25 - Add EVBatteryCharging attribute
- *
+ *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
+*
  *
  * Special thanks to:
  *
@@ -32,6 +33,9 @@
  *
  * @Hacksore and team for their work on Bluelinky, the Node.js app that provided functional Bluelink API calls that I studied to implement this app. This team
  * reverse-engineered the undocumented Bluelink API. Awesome job.
+ *
+ * @corinuss for fixing EV Start/Stop
+ *
  */
 
 import groovy.json.JsonSlurper
@@ -39,10 +43,10 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.5" }
+static String appVersion()   { return "1.0.6" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.5"
+	state.version = "1.0.6"
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"

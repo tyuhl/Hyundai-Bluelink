@@ -471,6 +471,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		sendEvent(device, [name: "isEV", value: isEV])
 		if (isEV){
 			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
+			safeSendEvent(device, "EVBatteryPluggedIn", reJson.vehicleStatus.evStatus.batteryPlugin, "true", "false")
 			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)
 			safeSendEvent(device, "EVRange", reJson.vehicleStatus.evStatus.drvDistance[0].rangeByFuel.evModeRange.value)
 		}
@@ -570,7 +571,8 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		authorize()
 	}
 
-	def uri = global_apiURL + '/ac/v2/rcs/rsc/start'
+	def isEV = device.currentValue("isEV") == "true"
+	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/start' : '/ac/v2/rcs/rsc/start')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
 
@@ -632,7 +634,8 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 		authorize()
 	}
 
-	def uri = global_apiURL + '/ac/v2/rcs/rsc/stop'
+	def isEV = device.currentValue("isEV") == "true"
+	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/stop' : '/ac/v2/rcs/rsc/stop')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
 	def params = [ uri: uri, headers: headers, timeout: 10 ]

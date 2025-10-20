@@ -375,6 +375,7 @@ def getVehicles(Boolean retry=false)
 					safeSendEvent(newDevice, "Trim", vehicle.vehicleDetails.trim)
 					safeSendEvent(newDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
 					safeSendEvent(newDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
+					safeSendEvent(newDevice, "isEV", vehicle.vehicleDetails?.evStatus == "E")  // ICE will be "N"
 				 }
 			}
 	}
@@ -459,7 +460,6 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		}
 
 		// Update relevant device attributes
-		def isEV = (reJson.vehicleStatus.evStatus != null)
 		safeSendEvent(device, 'Engine', reJson.vehicleStatus.engine, 'On', 'Off')
 		safeSendEvent(device, 'DoorLocks', reJson.vehicleStatus.doorLock, 'Locked', 'Unlocked')
 		safeSendEvent(device, 'Hood', reJson.vehicleStatus.hoodOpen, 'Open', 'Closed')
@@ -468,8 +468,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
 		safeSendEvent(device, "LastRefreshTime", reJson.vehicleStatus.dateTime)
 		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
-		sendEvent(device, [name: "isEV", value: isEV])
-		if (isEV){
+		if (device.currentValue("isEV") == "true") {
 			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
 			safeSendEvent(device, "EVBatteryPluggedIn", reJson.vehicleStatus.evStatus.batteryPlugin, "true", "false")
 			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)

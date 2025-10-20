@@ -724,7 +724,7 @@ private void listDiscoveredVehicles() {
 	builder << "<ul>"
 	children.each {
 		if (it != null) {
-			builder << "<li><a href='/device/edit/${it.getId()}'>${it.getLabel()}</a></li>"
+			builder << "<li><a href='/device/edit/${it.getId()}'>${it.getDisplayName()}</a></li>"
 		}
 	}
 	builder << "</ul>"
@@ -838,7 +838,7 @@ def log(Object data, String type) {
 				log.error "${data}"
 				break
 			default:
-				log.error("-- ${device.label} -- Invalid Log Setting")
+				log.error("-- ${app.label} -- Invalid Log Setting")
 		}
 	}
 }

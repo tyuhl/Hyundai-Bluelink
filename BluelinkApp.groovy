@@ -49,6 +49,12 @@ def setVersion() {
 @Field static String client_id = "m66129Bb-em93-SPAHYN-bZ91-am4540zp19920"
 @Field static String client_secret = "v558o935-6nne-423i-baa8"
 
+// Chicken Switch
+// Currently, classic profiles are not deleted when migrating, to allow for users to switch back to
+// an older version of the app if there is a problem.  Eventually we'll want to set this to true to
+// delete the settings after the next migration.
+@Field static final DELETE_CLASSIC_CLIMATE_PROFILES = false
+
 definition(
 		name: "Hyundai Bluelink App",
 		namespace: "tyuhl",
@@ -1120,15 +1126,18 @@ void migrateClassicProfiles() {
 			}
 		}
 
-		// Clean up deprected profiles.
-		// TODO - Uncomment this when ready
-		// CLIMATE_PROFILES.each { profileName ->
-		// 	app.removeSetting("${profileName}_climate")
-		// 	app.removeSetting("${profileName}_temp")
-		// 	app.removeSetting("${profileName}_defrost")
-		// 	app.removeSetting("${profileName}_heatAcc")
-		// 	app.removeSetting("${profileName}_ignitionDur")
-		// }
+		if (DELETE_CLASSIC_CLIMATE_PROFILES) {
+			log("Deleting classic climate profiles.", "debug")
+
+			// Clean up deprected profiles.
+			CLIMATE_PROFILES.each { profileName ->
+				app.removeSetting("${profileName}_climate")
+				app.removeSetting("${profileName}_temp")
+				app.removeSetting("${profileName}_defrost")
+				app.removeSetting("${profileName}_heatAcc")
+				app.removeSetting("${profileName}_ignitionDur")
+			}
+		}
 	}
 }
 

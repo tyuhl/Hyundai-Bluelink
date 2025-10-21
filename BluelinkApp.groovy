@@ -39,7 +39,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.5" }
+static String appVersion() { return "1.0.7-beta.climate" }
 def setVersion() {
 	state.name = "Hyundai Bluelink Application"
 	state.version = appVersion()

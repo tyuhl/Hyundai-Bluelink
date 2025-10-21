@@ -39,10 +39,10 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.5" }
-def setVersion(){
+static String appVersion() { return "1.0.5" }
+def setVersion() {
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.5"
+	state.version = appVersion()
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -103,10 +103,10 @@ def accountInfoPage()
 			input name: "user_name", type: "string", title: "Bluelink Username"
 		}
 		section(getFormat("item-light-grey", "Password")) {
-			input name: "user_pwd", type: "string", title: "Bluelink Password"
+			input name: "user_pwd", type: "password", title: "Bluelink Password"
 		}
 		section(getFormat("item-light-grey", "PIN")) {
-			input name: "bluelink_pin", type: "string", title: "Bluelink PIN"
+			input name: "bluelink_pin", type: "password", title: "Bluelink PIN"
 		}
 	}
 }

@@ -138,7 +138,7 @@ void cleanAppClimateProfileSettings(String profileName) {
 
 	// Clear out all seat location names that we support.
 	CLIMATE_SEAT_LOCATIONS.each { k, locationInfo ->
-		app.removeSetting("climate_${profileName}_${locationInfo.shortName}SeatHeatState")
+		app.removeSetting("climate_${profileName}_${locationInfo.name}SeatHeatState")
 	}
 }
 
@@ -165,7 +165,7 @@ Map gatherClimateProfileSettings(String profileName, Map climateProfiles, Map cl
 			def current_value = 0
 			def seatConfig = climateCapabilities?.seatConfigs[seatId]
 			if (seatConfig != null) {
-				current_value = climateProfile?.seatHeaterVentInfo?."${locationInfo.shortName}SeatHeatState"
+				current_value = climateProfile?.seatHeaterVentInfo?."${locationInfo.name}SeatHeatState"
 
 				if (current_value == null || !seatConfig.supportedLevels.contains(current_value)) {
 					current_value = getDefaultSeatLevel(seatConfig.supportedLevels)
@@ -189,17 +189,17 @@ def profilesPage() {
 		}
 
 		if (climate_vehicle != null) {
-		    def child_device = getChildDevice(climate_vehicle.deviceNetworkId)
+			def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
 
-			if (child_device == null) {
+			if (childDevice == null) {
 				section("Error:") {
-	                paragraph "${climate_vehicle.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
+					paragraph "${climate_vehicle.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
 				}
 			}
 			else {
 				// Identify what climate options are available to the user.
-				def climateProfiles = child_device.getClimateProfiles()
-				def climateCapabilities = child_device.getClimateCapabilities()
+				def climateProfiles = childDevice.getClimateProfiles()
+				def climateCapabilities = childDevice.getClimateCapabilities()
 
 				CLIMATE_PROFILES.each { profileName ->
 					// Delete the current vehicle settings in the app so we can change their values.
@@ -228,9 +228,9 @@ def profilesPage() {
 						section("Seat Temperatures", hideable:true, hidden: true) {
 							climateCapabilities.seatConfigs.each { seatId, seatConfig ->
 								input(
-									name: "climate_${profileName}_${CLIMATE_SEAT_LOCATIONS[seatId].shortName}SeatHeatState",
+									name: "climate_${profileName}_${CLIMATE_SEAT_LOCATIONS[seatId].name}SeatHeatState",
 									type: "enum",
-									title: "${CLIMATE_SEAT_LOCATIONS[seatId].name} Temperature",
+									title: "${CLIMATE_SEAT_LOCATIONS[seatId].description} Temperature",
 									defaultValue: climateProfileSettings.seatHeatState[seatId],
 									options: seatConfig.supportedLevels.collect{ [ (it) : CLIMATE_SEAT_SETTINGS[it] ] },
 									required: true)
@@ -264,13 +264,13 @@ def saveClimateProfiles() {
 
 	if (climate_vehicle != null) {
 	
-		def child_device = getChildDevice(climate_vehicle.deviceNetworkId)
-		if (child_device == null) {
+		def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+		if (childDevice == null) {
 			// This case shouldn't happen, because we already validated the child device earlier.
 			log "Could not remap ${climate_vehicle.getDisplayName()} to childDevice to save climate profiles."
 		}
 		else {
-			def climateCapabilities = child_device.getClimateCapabilities()
+			def climateCapabilities = childDevice.getClimateCapabilities()
 
 			def climateProfileStorage = [:]
 			CLIMATE_PROFILES.each { profileName ->
@@ -289,7 +289,7 @@ def saveClimateProfiles() {
 				{
 					climateProfile.seatHeaterVentInfo = [:]
 					climateCapabilities.seatConfigs.each { seatId, seatConfig ->
-						def shortSeatName = CLIMATE_SEAT_LOCATIONS[seatId].shortName
+						def shortSeatName = CLIMATE_SEAT_LOCATIONS[seatId].name
 
 						// Even though we gave the input() options a list of maps [ int : string ],
 						// it returns us the Integer as a String, so we need to convert it back.  :(
@@ -302,7 +302,7 @@ def saveClimateProfiles() {
 				climateProfileStorage[profileName] = climateProfile
 			}
 
-			child_device.setClimateProfiles(climateProfileStorage)
+			childDevice.setClimateProfiles(climateProfileStorage)
 
 			log("Saved climate profiles to ${climate_vehicle.getDisplayName()}: ${climateProfileStorage}", "debug")
 		}
@@ -366,34 +366,34 @@ def getDebugClimateCapabilitiesLink() {
 def debugClimateCapabilitiesPage() {
 	dynamicPage(name:"debugClimateCapabilitiesPage", title: "Override Climate Capabilities", nextPage: "debugClimateCapabilitiesSavedPage", install: false, uninstall: false) {
 		section("Choose your vehicle:") {
-			input(name: "climate_vehicle_debug", type: "device.HyundaiBluelinkDriver", title: "Vehicle to configure", required: true, submitOnChange: true)
+			input(name: "climate_vehicle", type: "device.HyundaiBluelinkDriver", title: "Vehicle to configure", required: true, submitOnChange: true)
 			paragraph "When done, click 'Next' at the bottom to save your changes to this vehicle."
 			paragraph "Use the 'Force Refresh Vehicle Details' button on the Debug page to reset these values when done."
 		}
 
-		if (climate_vehicle_debug != null) {
-			def child_device = getChildDevice(climate_vehicle_debug.deviceNetworkId)
+		if (climate_vehicle != null) {
+			def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
 
-			if (child_device == null) {
+			if (childDevice == null) {
 				section("Error:") {
-					paragraph "${climate_vehicle_debug.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
+					paragraph "${climate_vehicle.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
 				}
 			}
 			else {
-				def climateCapabilities = child_device.getClimateCapabilities()
+				def climateCapabilities = childDevice.getClimateCapabilities()
 				log("climateCapabilities $climateCapabilities", "trace")
 
-				app.removeSetting("vehicle_climate_capability_tempMin")
-				app.removeSetting("vehicle_climate_capability_tempMax")
-				app.removeSetting("vehicle_climate_capability_steeringWheelHeatCapable")
+				app.removeSetting("vehicleClimateCapability_tempMin")
+				app.removeSetting("vehicleClimateCapability_tempMax")
+				app.removeSetting("vehicleClimateCapability_steeringWheelHeatCapable")
 
 				// Clear out all seat location names that we support.
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
-					app.removeSetting("vehicle_climate_capability_seatConfigs_${seatId}_supportedLevels")
+					app.removeSetting("vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels")
 				}
 
-				def current_tempMin = climateCapabilities?.tempMin ?: 62
-				def current_tempMax = climateCapabilities?.tempMax ?: 82
+				def current_tempMin = climateCapabilities?.tempMin ?: CLIMATE_TEMP_MIN_DEFAULT
+				def current_tempMax = climateCapabilities?.tempMax ?: CLIMATE_TEMP_MAX_DEFAULT
 				def current_steeringWheelHeatCapable = climateCapabilities?.steeringWheelHeatCapable ?: false
 
 				def current_seatConfigs = [:]
@@ -405,18 +405,18 @@ def debugClimateCapabilitiesPage() {
 				}
 
 				section("") {
-					input(name: "vehicle_climate_capability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
-					input(name: "vehicle_climate_capability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
-					input(name: "vehicle_climate_capability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
+					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
+					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
+					input(name: "vehicleClimateCapability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
 				}
 
 				section("Seat Configurations") {
 					CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
 						log("current_seatConfigs[seatId].supportedLevels ${current_seatConfigs[seatId].supportedLevels}", "trace")
 						input(
-							name: "vehicle_climate_capability_seatConfigs_${seatId}_supportedLevels",
+							name: "vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels",
 							type: "enum",
-							title: "${CLIMATE_SEAT_LOCATIONS[seatId].name} Supported Levels",
+							title: "${CLIMATE_SEAT_LOCATIONS[seatId].description} Supported Levels",
 							defaultValue: current_seatConfigs[seatId].supportedLevels,
 							options: CLIMATE_SEAT_SETTINGS.collect{ settingId,name -> [(settingId) : name] },
 							multiple: true)
@@ -429,7 +429,7 @@ def debugClimateCapabilitiesPage() {
 
 def debugClimateCapabilitiesSavedPage() {
 	dynamicPage(name: "debugClimateCapabilitiesSavedPage", title: "<strong>Capabilities saved</strong>", nextPage: "mainPage", install: false, uninstall: false) {
-		if (climate_vehicle_debug != null) {
+		if (climate_vehicle != null) {
 			saveClimateCapabilities()
 			section("") {
 				paragraph "Climate capabilities have been saved to ${climate_vehicle.getDisplayName()}."
@@ -446,23 +446,23 @@ def debugClimateCapabilitiesSavedPage() {
 def saveClimateCapabilities() {
 	log("saveClimateProfiles called", "trace")
 
-	if (climate_vehicle_debug != null) {
+	if (climate_vehicle != null) {
 	
-		def child_device = getChildDevice(climate_vehicle_debug.deviceNetworkId)
-		if (child_device == null) {
+		def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+		if (childDevice == null) {
 			// This case shouldn't happen, because we already validated the child device earlier.
-			log "Could not remap ${climate_vehicle_debug.getDisplayName()} to childDevice to save climate profiles."
+			log "Could not remap ${climate_vehicle.getDisplayName()} to childDevice to save climate profiles."
 		}
 		else {
 			def climateCapabilities = [:]
 
-			climateCapabilities.tempMin = vehicle_climate_capability_tempMin
-			climateCapabilities.tempMax = vehicle_climate_capability_tempMax
-			climateCapabilities.steeringWheelHeatCapable = vehicle_climate_capability_steeringWheelHeatCapable
+			climateCapabilities.tempMin = vehicleClimateCapability_tempMin
+			climateCapabilities.tempMax = vehicleClimateCapability_tempMax
+			climateCapabilities.steeringWheelHeatCapable = vehicleClimateCapability_steeringWheelHeatCapable
 
 			def seatConfigs = [:]
 			CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
-				def supportedLevels = app.getSetting("vehicle_climate_capability_seatConfigs_${seatId}_supportedLevels")
+				def supportedLevels = app.getSetting("vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels")
 				def has_seat = (supportedLevels != null) && !supportedLevels.isEmpty()
 				if (has_seat) {
 					def seatInfo = [:]
@@ -472,8 +472,8 @@ def saveClimateCapabilities() {
 			}
 			climateCapabilities.seatConfigs = seatConfigs
 
-			child_device.setClimateCapabilities(climateCapabilities)
-			log("Saved climate capabilities to ${climate_vehicle_debug.getDisplayName()}: ${climateCapabilities}", "debug")
+			childDevice.setClimateCapabilities(climateCapabilities)
+			log("Saved climate capabilities to ${climate_vehicle.getDisplayName()}: ${climateCapabilities}", "debug")
 		}
 	}
 }
@@ -892,14 +892,14 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	def childDevice = getChildDevice(device.deviceNetworkId)
 	def climateBody = [ "airCtrl" : 0 ] // default to off unless we have data
 	if (childDevice == null) {
-	    log("Could not obtain climate profiles.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
+		log("Could not obtain climate profiles.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
 	}
 	else {
 		def climateProfiles = childDevice.getClimateProfiles()
 		if (!climateProfiles.containsKey(profile)) {
 			// Empty should always use defaults without complaint
 			if (!profile.isEmpty()) {
-			    log("Ignoring profile '$profile' when starting vehicle ${device.getDisplayName()} because it doesn't exist.", "warn")
+				log("Ignoring profile '$profile' when starting vehicle ${device.getDisplayName()} because it doesn't exist.", "warn")
 			}
 		}
 		else {
@@ -988,6 +988,8 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 ///
 // Climate functionality
 ///
+@Field static final CLIMATE_TEMP_MIN_DEFAULT = 62
+@Field static final CLIMATE_TEMP_MAX_DEFAULT = 82
 
 @Field static final CLIMATE_PROFILES =
 [
@@ -998,12 +1000,12 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 
 @Field static final CLIMATE_SEAT_LOCATIONS =
 [
-	"1" : ["shortName" : "drv", "name" : "Driver Seat" ],
-	"2" : ["shortName" : "ast", "name" : "Passenger Seat" ],
-	"3" : ["shortName" : "rl", "name" : "Rear Left Seat" ],
-	"4" : ["shortName" : "rr", "name" : "Rear Right Seat" ],
+	"1" : ["name" : "drv", "description" : "Driver Seat" ],
+	"2" : ["name" : "ast", "description" : "Passenger Seat" ],
+	"3" : ["name" : "rl",  "description" : "Rear Left Seat" ],
+	"4" : ["name" : "rr",  "description" : "Rear Right Seat" ],
 	// Protection against newer locations.  These seats will probably end up ignored.
-].withDefault { otherValue -> ["shortName" : "Unknown$otherValue", "name" : "Unknown$otherValue seat" ]  }
+].withDefault { otherValue -> ["name" : "Unknown$otherValue", "description" : "Unknown$otherValue Seat" ]  }
 
 @Field static final CLIMATE_SEAT_SETTINGS =
 [
@@ -1085,16 +1087,16 @@ Map sanitizeSeatConfigs(ArrayList seatConfigs) {
 void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleDetails)
 {
 	def climateCapabilities = [
-		"tempMin" : vehicleDetails.additionalVehicleDetails?.minTemp ?: 62,
-		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: 82,
+		"tempMin" : vehicleDetails.additionalVehicleDetails?.minTemp ?: CLIMATE_TEMP_MIN_DEFAULT,
+		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: CLIMATE_TEMP_MAX_DEFAULT,
 		"steeringWheelHeatCapable" : (vehicleDetails.steeringWheelHeatCapable ?: "NO") == "YES",
 		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs)
 	]
 
 	// Need to convert to a child device to be able to save to the device.
-    def childDevice = getChildDevice(device.deviceNetworkId)
+	def childDevice = getChildDevice(device.deviceNetworkId)
 	if (childDevice == null) {
-	    log("Could not cache climate capabilities.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
+		 log("Could not cache climate capabilities.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
 	}
 	else {
 		childDevice.setClimateCapabilities(climateCapabilities)
@@ -1105,10 +1107,10 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 // This will continue to work as it did before, and features will be add or removed according to vehicle
 // capabilities the next time the user modifies the profile for their vehicle.
 void migrateClassicProfiles() {
-	
 	// Check if one setting exists before doing the full migration.
 	// If we've already cleaned it up, the data has already been migrated.
 	if (app.getSetting("Summer_climate") != null) {
+		log("Attempting to migrateClassicProfiles", "trace")
 
 		def climateProfileStorage = [:]
 		CLIMATE_PROFILES.each { profileName ->
@@ -1120,17 +1122,15 @@ void migrateClassicProfiles() {
 
 			def temp_setting = app.getSetting("${profileName}_temp")
 			if (temp_setting == "LO") {
-				temp_setting = 62
+				temp_setting = CLIMATE_TEMP_MIN_DEFAULT
 			}
 			else if (temp_setting == "HI") {
-				temp_setting = 82
+				temp_setting = CLIMATE_TEMP_MAX_DEFAULT
 			}
 			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting]
 
 			climateProfileStorage[profileName] = climateProfile
 		}
-
-		log("climateProfileStorage $climateProfileStorage", "trace")
 
 		getChildDevices().each { device ->
 			if (device.getClimateProfiles() == null) {

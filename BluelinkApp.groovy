@@ -345,6 +345,9 @@ def debugPage() {
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
+		section {
+			input(name: "resetVehicleDetails", type: "button", title: "Force Refresh Vehicle Details", submitOnChange: true)
+		}
 		getDebugClimateCapabilitiesLink()
 	}
 }
@@ -365,6 +368,7 @@ def debugClimateCapabilitiesPage() {
 		section("Choose your vehicle:") {
 			input(name: "climate_vehicle_debug", type: "device.HyundaiBluelinkDriver", title: "Vehicle to configure", required: true, submitOnChange: true)
 			paragraph "When done, click 'Next' at the bottom to save your changes to this vehicle."
+			paragraph "Use the 'Force Refresh Vehicle Details' button on the Debug page to reset these values when done."
 		}
 
 		if (climate_vehicle_debug != null) {
@@ -485,6 +489,9 @@ def appButtonHandler(btn) {
 			break
 		case 'initialize':
 			initialize()
+			break
+		case 'resetVehicleDetails':
+			getVehicles(false, true)
 			break
 		default:
 			log("Invalid Button In Handler", "error")
@@ -617,7 +624,7 @@ def authResponse(response)
 	}
 }
 
-def getVehicles(Boolean retry=false)
+def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
 {
 	log("getVehicles called", "trace")
 
@@ -655,20 +662,30 @@ def getVehicles(Boolean retry=false)
 	else {
 			reJson.enrolledVehicleDetails.each{ vehicle ->
 				log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
-				def newDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
-				if (newDevice != null) {
-					//populate attributes
-					safeSendEvent(newDevice, "NickName", vehicle.vehicleDetails.nickName)
-					safeSendEvent(newDevice, "VIN", vehicle.vehicleDetails.vin)
-					safeSendEvent(newDevice, "RegId", vehicle.vehicleDetails.regid)
-					safeSendEvent(newDevice, "Odometer", vehicle.vehicleDetails.odometer)
-					safeSendEvent(newDevice, "Model", vehicle.vehicleDetails.series)
-					safeSendEvent(newDevice, "Trim", vehicle.vehicleDetails.trim)
-					safeSendEvent(newDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
-					safeSendEvent(newDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
-					safeSendEvent(newDevice, "isEV", vehicle.vehicleDetails.evStatus == "E")  // ICE will be "N"
 
-					cacheClimateCapabilities(newDevice, vehicle.vehicleDetails)
+				com.hubitat.app.ChildDeviceWrapper childDevice = null
+				if (resetAllVehicles) {
+					// Try to get the device if it already exists.
+					childDevice = getChildDevice(getChildDeviceNetId(vehicle.vehicleDetails.vin))
+				}
+				else if (childDevice == null) {
+					// Try to create a new device.
+					childDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
+				}
+
+				if (childDevice != null) {
+					//populate attributes
+					safeSendEvent(childDevice, "NickName", vehicle.vehicleDetails.nickName)
+					safeSendEvent(childDevice, "VIN", vehicle.vehicleDetails.vin)
+					safeSendEvent(childDevice, "RegId", vehicle.vehicleDetails.regid)
+					safeSendEvent(childDevice, "Odometer", vehicle.vehicleDetails.odometer)
+					safeSendEvent(childDevice, "Model", vehicle.vehicleDetails.series)
+					safeSendEvent(childDevice, "Trim", vehicle.vehicleDetails.trim)
+					safeSendEvent(childDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
+					safeSendEvent(childDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
+					safeSendEvent(childDevice, "isEV", vehicle.vehicleDetails.evStatus == "E")  // ICE will be "N"
+
+					cacheClimateCapabilities(childDevice, vehicle.vehicleDetails)
 				 }
 			}
 	}
@@ -718,10 +735,6 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 		reJson.enrolledVehicleDetails.each{ vehicle ->
 				if (vehicle.vehicleDetails.vin == theVIN) {
 					safeSendEvent(device, "Odometer", vehicle.vehicleDetails.odometer)
-
-					// Also update climate capabilities here, since we already have the data in the query.
-					// TODO: Remove this.
-					cacheClimateCapabilities(device, vehicle.vehicleDetails)
 				}
 		}
 	}
@@ -1245,10 +1258,15 @@ private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWr
 	return theHeaders
 }
 
+private getChildDeviceNetId(String Vin)
+{
+	return "Hyundai_" + Vin
+}
+
 private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String Vin)
 {
 	log("CreateChildDriver called", "trace")
-	String vehicleNetId = "Hyundai_" + Vin
+	String vehicleNetId = getChildDeviceNetId(Vin)
 	com.hubitat.app.ChildDeviceWrapper newDevice = null
 	try {
 			newDevice = addChildDevice(

@@ -20,13 +20,14 @@
  *  8/14/21 - Initial work.
  *  5/2/25  - Added additional attributes
  *  5/5/25  - Added additional attributes and some EV support
- *  10/10/25 - Added some EV attributes and an EV status HTML attribute
+ *  5/10/25 - Added some EV attributes and an EV status HTML attribute
+ *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  */
 
-String appVersion()   { return "1.0.3" }
+String appVersion()   { return "1.0.4" }
 def setVersion(){
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.3"
+	state.version = "1.0.4"
 }
 
 metadata {

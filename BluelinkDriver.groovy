@@ -161,6 +161,29 @@ void Location()
 }
 
 ///
+// Data managed by the App but stored in the device
+///
+void setClimateCapabilities(Map climate_capabilities)
+{
+	state.climateCapabilities = climate_capabilities
+}
+
+Map getClimateCapabilities()
+{
+	return state.climateCapabilities
+}
+
+void setClimateProfiles(Map profiles)
+{
+	state.climateProfiles = profiles
+}
+
+Map getClimateProfiles()
+{
+	return state.climateProfiles
+}
+
+///
 // Supporting helpers
 ///
 private void updateHtml()

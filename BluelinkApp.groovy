@@ -43,15 +43,21 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion()   { return "1.0.6" }
-def setVersion(){
+static String appVersion() { return "1.0.7-beta.climate" }
+def setVersion() {
 	state.name = "Hyundai Bluelink Application"
-	state.version = "1.0.6"
+	state.version = appVersion()
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
 @Field static String client_id = "m66129Bb-em93-SPAHYN-bZ91-am4540zp19920"
 @Field static String client_secret = "v558o935-6nne-423i-baa8"
+
+// Chicken Switch
+// Currently, classic profiles are not deleted when migrating, to allow for users to switch back to
+// an older version of the app if there is a problem.  Eventually we'll want to set this to true to
+// delete the settings after the next migration.
+@Field static final DELETE_CLASSIC_CLIMATE_PROFILES = false
 
 definition(
 		name: "Hyundai Bluelink App",
@@ -68,7 +74,10 @@ preferences {
 	page(name: "mainPage")
 	page(name: "accountInfoPage")
 	page(name: "profilesPage")
+	page(name: "profilesSavedPage")
 	page(name: "debugPage", title: "Debug Options", install: false)
+	page(name: "debugClimateCapabilitiesPage")
+	page(name: "debugClimateCapabilitiesSavedPage")
 }
 
 def mainPage()
@@ -104,10 +113,10 @@ def accountInfoPage()
 			input name: "user_name", type: "string", title: "Bluelink Username"
 		}
 		section(getFormat("item-light-grey", "Password")) {
-			input name: "user_pwd", type: "string", title: "Bluelink Password"
+			input name: "user_pwd", type: "password", title: "Bluelink Password"
 		}
 		section(getFormat("item-light-grey", "PIN")) {
-			input name: "bluelink_pin", type: "string", title: "Bluelink PIN"
+			input name: "bluelink_pin", type: "password", title: "Bluelink PIN"
 		}
 	}
 }
@@ -123,27 +132,183 @@ def getAccountLink() {
 	}
 }
 
-def profilesPage()
+void cleanAppClimateProfileSettings(String profileName) {
+	app.removeSetting("climate_${profileName}_airctrl")
+	app.removeSetting("climate_${profileName}_airTemp")
+	app.removeSetting("climate_${profileName}_defrost")
+	app.removeSetting("climate_${profileName}_steeringHeat")
+	app.removeSetting("climate_${profileName}_rearWindowHeat")
+	app.removeSetting("climate_${profileName}_ignitionDur")
+
+	// Clear out all seat location names that we support.
+	CLIMATE_SEAT_LOCATIONS.each { k, locationInfo ->
+		app.removeSetting("climate_${profileName}_${locationInfo.name}SeatHeatState")
+	}
+}
+
+Map gatherClimateProfileSettings(String profileName, Map climateProfiles, Map climateCapabilities)
 {
-	dynamicPage(name: "profilesPage", title: "<strong>Review/Edit Vehicle Start Options</strong>", install: false, uninstall: false) {
-		for (int i = 0; i < 3; i++) {
-			String profileName = "Summer"
-			switch(i)
-			{
-				case 0: profileName = "Summer"
-					break
-				case 1: profileName = "Winter"
-					break
-				case 2: profileName = "Profile3"
+	def profileSettings = [:]
+
+	// Gather what the displayed settings defaults should be, according to what the user previously
+	// saved or a reasonable default if they haven't set this setting yet.
+	def climateProfile = climateProfiles?."${profileName}"
+
+	profileSettings.airctrl = climateProfile?.airCtrl ?: true
+	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
+	profileSettings.defrost = climateProfile?.defrost ?: false
+	profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+	
+	def heating1 = climateProfile?.heating1 ?: 0
+	profileSettings.steeringHeat = heating1HasSteeringHeatingEnabled(heating1)
+	profileSettings.rearWindowHeat = heating1HasRearWindowHeatingEnabled(heating1)
+	
+	profileSettings.seatHeatState = [:]
+
+	CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
+			def current_value = 0
+			def seatConfig = climateCapabilities?.seatConfigs[seatId]
+			if (seatConfig != null) {
+				current_value = climateProfile?.seatHeaterVentInfo?."${locationInfo.name}SeatHeatState"
+
+				if (current_value == null || !seatConfig.supportedLevels.contains(current_value)) {
+					current_value = getDefaultSeatLevel(seatConfig.supportedLevels)
+				}
 			}
-			def tempOptions = ["LO", "64", "66", "68", "70", "72", "74", "76", "78", "80", "HI"]
-			section(getFormat("header-blue-grad","Profile: ${profileName}")) {
-				input(name: "${profileName}_climate", type: "bool", title: "Turn on climate control when starting", defaultValue: true, submitOnChange: true)
-				input(name: "${profileName}_temp", type: "enum", title: "Climate temperature to set", options: tempOptions, defaultValue: "70", required: true)
-				input(name: "${profileName}_defrost", type: "bool", title: "Turn on defrost when starting", defaultValue: false, submitOnChange: true)
-				input(name: "${profileName}_heatAcc", type: "bool", title: "Turn on heated accessories when starting", defaultValue: false, submitOnChange: true)
-				input(name: "${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-10)", defaultValue: 10, range: "1..10", required: true, submitOnChange: true)
+
+			profileSettings.seatHeatState[seatId] = current_value
+	}
+
+	return profileSettings
+}
+
+def profilesPage() {
+	// If the profiles haven't been migrated yet, do that now so we can show the user accurate data.
+	migrateClassicProfiles()
+
+	dynamicPage(name: "profilesPage", title: "<strong>Review/Edit Vehicle Start Options</strong>", nextPage: "profilesSavedPage", install: false, uninstall: false) {
+		 section("Choose your vehicle:") {
+		 	input(name: "climate_vehicle", type: "device.HyundaiBluelinkDriver", title: "Vehicle to configure", required: true, submitOnChange: true)
+			paragraph "When done, click 'Next' at the bottom to save your climate profile changes to this vehicle."
+		}
+
+		if (climate_vehicle != null) {
+			def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+
+			if (childDevice == null) {
+				section("Error:") {
+					paragraph "${climate_vehicle.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
+				}
 			}
+			else {
+				// Identify what climate options are available to the user.
+				def climateProfiles = childDevice.getClimateProfiles()
+				def climateCapabilities = childDevice.getClimateCapabilities()
+
+				CLIMATE_PROFILES.each { profileName ->
+					// Delete the current vehicle settings in the app so we can change their values.
+					cleanAppClimateProfileSettings(profileName)
+
+					def climateProfileSettings = gatherClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
+
+					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
+						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting", defaultValue: climateProfileSettings.airctrl)
+						input(name: "climate_${profileName}_airTemp", type: "number", title: "Climate temperature to set (${climateCapabilities.tempMin}-${climateCapabilities.tempMax})", defaultValue: climateProfileSettings.airTemp, range: "${climateCapabilities.tempMin}..${climateCapabilities.tempMax}", required: true)
+						input(name: "climate_${profileName}_defrost", type: "bool", title: "Turn on Front Defroster when starting", defaultValue: climateProfileSettings.defrost)
+
+						// Could customize this visibility on "rearWindowHeatCapable" and/or "sideMirrorHeatCapable", but they
+						// currently share the same value, and pretty much every car has rear window heating.
+						input(name: "climate_${profileName}_rearWindowHeat", type: "bool", title: "Turn on Rear Window and Side Mirror Defrosters when starting", defaultValue: climateProfileSettings.rearWindowHeat)
+
+						if (climateCapabilities.steeringWheelHeatCapable) {
+							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
+						}
+
+						input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+					}
+
+					if (!climateCapabilities.seatConfigs.isEmpty()) {
+						// Collapse by default to match Bluelink app behavior and keep the page a bit tighter.
+						section("Seat Temperatures", hideable:true, hidden: true) {
+							climateCapabilities.seatConfigs.each { seatId, seatConfig ->
+								input(
+									name: "climate_${profileName}_${CLIMATE_SEAT_LOCATIONS[seatId].name}SeatHeatState",
+									type: "enum",
+									title: "${CLIMATE_SEAT_LOCATIONS[seatId].description} Temperature",
+									defaultValue: climateProfileSettings.seatHeatState[seatId],
+									options: seatConfig.supportedLevels.collect{ [ (it) : CLIMATE_SEAT_SETTINGS[it] ] },
+									required: true)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+def profilesSavedPage() {
+	dynamicPage(name: "profilesSavedPage", title: "<strong>Profiles saved</strong>", nextPage: "mainPage", install: false, uninstall: false) {
+		if (climate_vehicle != null) {
+			saveClimateProfiles()
+			section("") {
+				paragraph "Climate profiles have been saved to ${climate_vehicle.getDisplayName()}."
+			}
+		}
+		else {
+			section("") {
+				paragraph "No climate profiles saved since no vehicle was selected."
+			}
+		}
+	}
+}
+
+def saveClimateProfiles() {
+	log("saveClimateProfiles called", "trace")
+
+	if (climate_vehicle != null) {
+	
+		def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+		if (childDevice == null) {
+			// This case shouldn't happen, because we already validated the child device earlier.
+			log "Could not remap ${climate_vehicle.getDisplayName()} to childDevice to save climate profiles."
+		}
+		else {
+			def climateCapabilities = childDevice.getClimateCapabilities()
+
+			def climateProfileStorage = [:]
+			CLIMATE_PROFILES.each { profileName ->
+				def climateProfile = [:]
+				climateProfile.airCtrl = app.getSetting("climate_${profileName}_airctrl") ? 1: 0
+				climateProfile.airTemp = ["unit" : 1, "value" : app.getSetting("climate_${profileName}_airTemp")]
+				climateProfile.defrost = app.getSetting("climate_${profileName}_defrost")
+
+				def rearWindowHeat = app.getSetting("climate_${profileName}_rearWindowHeat")
+				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
+				climateProfile.heating1 = getHeating1Value(rearWindowHeat, steeringHeat)
+
+				climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
+
+				if (!climateCapabilities.seatConfigs.isEmpty())
+				{
+					climateProfile.seatHeaterVentInfo = [:]
+					climateCapabilities.seatConfigs.each { seatId, seatConfig ->
+						def shortSeatName = CLIMATE_SEAT_LOCATIONS[seatId].name
+
+						// Even though we gave the input() options a list of maps [ int : string ],
+						// it returns us the Integer as a String, so we need to convert it back.  :(
+						def seatLevel = app.getSetting("climate_${profileName}_${shortSeatName}SeatHeatState") as Integer
+
+						climateProfile.seatHeaterVentInfo["${shortSeatName}SeatHeatState"] = seatLevel
+					}
+				}
+
+				climateProfileStorage[profileName] = climateProfile
+			}
+
+			childDevice.setClimateProfiles(climateProfileStorage)
+
+			log("Saved climate profiles to ${climate_vehicle.getDisplayName()}: ${climateProfileStorage}", "debug")
 		}
 	}
 }
@@ -184,6 +349,136 @@ def debugPage() {
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
+		section {
+			input(name: "resetVehicleDetails", type: "button", title: "Force Refresh Vehicle Details", submitOnChange: true)
+		}
+		getDebugClimateCapabilitiesLink()
+	}
+}
+
+def getDebugClimateCapabilitiesLink() {
+	section{
+		href(
+				name       : 'debugClimateCapabilitiesHref',
+				title      : 'Modify Vehicle Climate Capabilities',
+				page       : 'debugClimateCapabilitiesPage',
+				description: 'Overried a vehicles auto-detected climate capabilities so App features not supported by the vehicle can be tested.'
+		)
+	}
+}
+
+def debugClimateCapabilitiesPage() {
+	dynamicPage(name:"debugClimateCapabilitiesPage", title: "Override Climate Capabilities", nextPage: "debugClimateCapabilitiesSavedPage", install: false, uninstall: false) {
+		section("Choose your vehicle:") {
+			input(name: "climate_vehicle", type: "device.HyundaiBluelinkDriver", title: "Vehicle to configure", required: true, submitOnChange: true)
+			paragraph "When done, click 'Next' at the bottom to save your changes to this vehicle."
+			paragraph "Use the 'Force Refresh Vehicle Details' button on the Debug page to reset these values when done."
+		}
+
+		if (climate_vehicle != null) {
+			def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+
+			if (childDevice == null) {
+				section("Error:") {
+					paragraph "${climate_vehicle.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app."
+				}
+			}
+			else {
+				def climateCapabilities = childDevice.getClimateCapabilities()
+				log("climateCapabilities $climateCapabilities", "trace")
+
+				app.removeSetting("vehicleClimateCapability_tempMin")
+				app.removeSetting("vehicleClimateCapability_tempMax")
+				app.removeSetting("vehicleClimateCapability_steeringWheelHeatCapable")
+
+				// Clear out all seat location names that we support.
+				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
+					app.removeSetting("vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels")
+				}
+
+				def current_tempMin = climateCapabilities?.tempMin ?: CLIMATE_TEMP_MIN_DEFAULT
+				def current_tempMax = climateCapabilities?.tempMax ?: CLIMATE_TEMP_MAX_DEFAULT
+				def current_steeringWheelHeatCapable = climateCapabilities?.steeringWheelHeatCapable ?: false
+
+				def current_seatConfigs = [:]
+				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
+					def seatConfig = [:]
+					seatConfig.hasSeat = climateCapabilities?.seatConfigs?.containsKey(seatId) ?: false
+					seatConfig.supportedLevels = seatConfig.hasSeat ? climateCapabilities.seatConfigs[seatId].supportedLevels : []
+					current_seatConfigs[seatId] = seatConfig
+				}
+
+				section("") {
+					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
+					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
+					input(name: "vehicleClimateCapability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
+				}
+
+				section("Seat Configurations") {
+					CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
+						log("current_seatConfigs[seatId].supportedLevels ${current_seatConfigs[seatId].supportedLevels}", "trace")
+						input(
+							name: "vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels",
+							type: "enum",
+							title: "${CLIMATE_SEAT_LOCATIONS[seatId].description} Supported Levels",
+							defaultValue: current_seatConfigs[seatId].supportedLevels,
+							options: CLIMATE_SEAT_SETTINGS.collect{ settingId,name -> [(settingId) : name] },
+							multiple: true)
+					}
+				}
+			}
+		}
+	}
+}
+
+def debugClimateCapabilitiesSavedPage() {
+	dynamicPage(name: "debugClimateCapabilitiesSavedPage", title: "<strong>Capabilities saved</strong>", nextPage: "mainPage", install: false, uninstall: false) {
+		if (climate_vehicle != null) {
+			saveClimateCapabilities()
+			section("") {
+				paragraph "Climate capabilities have been saved to ${climate_vehicle.getDisplayName()}."
+			}
+		}
+		else {
+			section("") {
+				paragraph "No climate capabilities saved since no vehicle was selected."
+			}
+		}
+	}
+}
+
+def saveClimateCapabilities() {
+	log("saveClimateProfiles called", "trace")
+
+	if (climate_vehicle != null) {
+	
+		def childDevice = getChildDevice(climate_vehicle.deviceNetworkId)
+		if (childDevice == null) {
+			// This case shouldn't happen, because we already validated the child device earlier.
+			log "Could not remap ${climate_vehicle.getDisplayName()} to childDevice to save climate profiles."
+		}
+		else {
+			def climateCapabilities = [:]
+
+			climateCapabilities.tempMin = vehicleClimateCapability_tempMin
+			climateCapabilities.tempMax = vehicleClimateCapability_tempMax
+			climateCapabilities.steeringWheelHeatCapable = vehicleClimateCapability_steeringWheelHeatCapable
+
+			def seatConfigs = [:]
+			CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
+				def supportedLevels = app.getSetting("vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels")
+				def has_seat = (supportedLevels != null) && !supportedLevels.isEmpty()
+				if (has_seat) {
+					def seatInfo = [:]
+					seatInfo.supportedLevels = supportedLevels.collect{ it as Integer }
+					seatConfigs."$seatId" = seatInfo
+				}
+			}
+			climateCapabilities.seatConfigs = seatConfigs
+
+			childDevice.setClimateCapabilities(climateCapabilities)
+			log("Saved climate capabilities to ${climate_vehicle.getDisplayName()}: ${climateCapabilities}", "debug")
+		}
 	}
 }
 
@@ -198,6 +493,9 @@ def appButtonHandler(btn) {
 			break
 		case 'initialize':
 			initialize()
+			break
+		case 'resetVehicleDetails':
+			getVehicles(false, true)
 			break
 		default:
 			log("Invalid Button In Handler", "error")
@@ -330,7 +628,7 @@ def authResponse(response)
 	}
 }
 
-def getVehicles(Boolean retry=false)
+def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
 {
 	log("getVehicles called", "trace")
 
@@ -368,17 +666,30 @@ def getVehicles(Boolean retry=false)
 	else {
 			reJson.enrolledVehicleDetails.each{ vehicle ->
 				log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
-				def newDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
-				if (newDevice != null) {
+
+				com.hubitat.app.ChildDeviceWrapper childDevice = null
+				if (resetAllVehicles) {
+					// Try to get the device if it already exists.
+					childDevice = getChildDevice(getChildDeviceNetId(vehicle.vehicleDetails.vin))
+				}
+				else if (childDevice == null) {
+					// Try to create a new device.
+					childDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
+				}
+
+				if (childDevice != null) {
 					//populate attributes
-					safeSendEvent(newDevice, "NickName", vehicle.vehicleDetails.nickName)
-					safeSendEvent(newDevice, "VIN", vehicle.vehicleDetails.vin)
-					safeSendEvent(newDevice, "RegId", vehicle.vehicleDetails.regid)
-					safeSendEvent(newDevice, "Odometer", vehicle.vehicleDetails.odometer)
-					safeSendEvent(newDevice, "Model", vehicle.vehicleDetails.series)
-					safeSendEvent(newDevice, "Trim", vehicle.vehicleDetails.trim)
-					safeSendEvent(newDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
-					safeSendEvent(newDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
+					safeSendEvent(childDevice, "NickName", vehicle.vehicleDetails.nickName)
+					safeSendEvent(childDevice, "VIN", vehicle.vehicleDetails.vin)
+					safeSendEvent(childDevice, "RegId", vehicle.vehicleDetails.regid)
+					safeSendEvent(childDevice, "Odometer", vehicle.vehicleDetails.odometer)
+					safeSendEvent(childDevice, "Model", vehicle.vehicleDetails.series)
+					safeSendEvent(childDevice, "Trim", vehicle.vehicleDetails.trim)
+					safeSendEvent(childDevice, "vehicleGeneration", vehicle.vehicleDetails.vehicleGeneration)
+					safeSendEvent(childDevice, "brandIndicator", vehicle.vehicleDetails.brandIndicator)
+					safeSendEvent(childDevice, "isEV", vehicle.vehicleDetails.evStatus == "E")  // ICE will be "N"
+
+					cacheClimateCapabilities(childDevice, vehicle.vehicleDetails)
 				 }
 			}
 	}
@@ -426,7 +737,7 @@ void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=f
 	else {
 		String theVIN = device.currentValue("VIN")
 		reJson.enrolledVehicleDetails.each{ vehicle ->
-				if(vehicle.vehicleDetails.vin == theVIN) {
+				if (vehicle.vehicleDetails.vin == theVIN) {
 					safeSendEvent(device, "Odometer", vehicle.vehicleDetails.odometer)
 				}
 		}
@@ -463,7 +774,6 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		}
 
 		// Update relevant device attributes
-		def isEV = (reJson.vehicleStatus.evStatus != null)
 		safeSendEvent(device, 'Engine', reJson.vehicleStatus.engine, 'On', 'Off')
 		safeSendEvent(device, 'DoorLocks', reJson.vehicleStatus.doorLock, 'Locked', 'Unlocked')
 		safeSendEvent(device, 'Hood', reJson.vehicleStatus.hoodOpen, 'Open', 'Closed')
@@ -472,8 +782,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
 		safeSendEvent(device, "LastRefreshTime", reJson.vehicleStatus.dateTime)
 		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
-		sendEvent(device, [name: "isEV", value: isEV])
-		if (isEV){
+		if (device.currentValue("isEV") == "true") {
 			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
 			safeSendEvent(device, "EVBatteryPluggedIn", reJson.vehicleStatus.evStatus.batteryPlugin, "true", "false")
 			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)
@@ -580,26 +889,35 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
 
+	// If the classic profiles haven't been migrated yet, do that now so we can apply accurate data.
+	migrateClassicProfiles()
+	
 	// Fill in profile parameters
-	int climateCtrl = settings["${profile}_climate"] ? 1: 0   // 1: climate on, 0: climate off
-	int heatedAcc = settings["${profile}_heatAcc"] ? 1: 0     // 1: heated steering on, seats?
-	String Temp = settings["${profile}_temp"]
-	Boolean Defrost = settings["${profile}_defrost"]
-	int Duration = settings["${profile}_ignitionDur"]
+	def childDevice = getChildDevice(device.deviceNetworkId)
+	def climateBody = [ "airCtrl" : 0 ] // default to off unless we have data
+	if (childDevice == null) {
+		log("Could not obtain climate profiles.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
+	}
+	else {
+		def climateProfiles = childDevice.getClimateProfiles()
+		if (!climateProfiles.containsKey(profile)) {
+			// Empty should always use defaults without complaint
+			if (!profile.isEmpty()) {
+				log("Ignoring profile '$profile' when starting vehicle ${device.getDisplayName()} because it doesn't exist.", "warn")
+			}
+		}
+		else {
+			climateBody = climateProfiles[profile]
+		}
+	}
 
 	String theVIN = device.currentValue("VIN")
 	String theCar = device.currentValue("NickName")
 	def body = [
 			"username": user_name,
 			"vin": theVIN,
-			"Ims": 0,
-			"airCtrl" : climateCtrl,
-			"airTemp" : ["unit" : 1, "value": Temp],
-			"defrost" : Defrost,
-			"heating1" : heatedAcc,
-			"igniOnDuration" : Duration,
-			"seatHeaterVentInfo" : null  //what this does is unknown
-	]
+			"Ims": 0
+	] + climateBody
 	String sBody = JsonOutput.toJson(body).toString()
 
 	def params = [ uri: uri, headers: headers, body: sBody, timeout: 10 ]
@@ -672,6 +990,175 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 }
 
 ///
+// Climate functionality
+///
+@Field static final CLIMATE_TEMP_MIN_DEFAULT = 62
+@Field static final CLIMATE_TEMP_MAX_DEFAULT = 82
+
+@Field static final CLIMATE_PROFILES =
+[
+	"Summer",
+	"Winter",
+	"Profile3"
+]
+
+@Field static final CLIMATE_SEAT_LOCATIONS =
+[
+	"1" : ["name" : "drv", "description" : "Driver Seat" ],
+	"2" : ["name" : "ast", "description" : "Passenger Seat" ],
+	"3" : ["name" : "rl",  "description" : "Rear Left Seat" ],
+	"4" : ["name" : "rr",  "description" : "Rear Right Seat" ],
+	// Protection against newer locations.  These seats will probably end up ignored.
+].withDefault { otherValue -> ["name" : "Unknown$otherValue", "description" : "Unknown$otherValue Seat" ]  }
+
+@Field static final CLIMATE_SEAT_SETTINGS =
+[
+	0 : "Off",
+	1 : "On",
+	2 : "Off",
+	3 : "Cool Low",
+	4 : "Cool Medium",
+	5 : "Cool High",
+	6 : "Heat Low",
+	7 : "Heat Medium",
+	8 : "Heat High",
+	// Protection against newer settings.  This should continue to function even with Unknowns.
+].withDefault { otherValue -> "Unknown$otherValue" }
+
+// heating1 values are:
+// ====================
+// 0: 'Off',
+// 1: 'Steering Wheel and Rear Window',
+// 2: 'Rear Window',
+// 3: 'Steering Wheel',
+// 4: "Steering Wheel and Rear Window" // # Seems to be the same as 1 but different region (EU)
+Integer getHeating1Value(Boolean enableRearWindowHeat, Boolean enableSteeringHeat) {
+	if (enableRearWindowHeat) {
+		// If supporting EU, might need to return 4 here instead of 1.
+		return enableSteeringHeat ? 1 : 2
+	}
+	else {
+		return enableSteeringHeat ? 3 : 0
+	}
+}
+
+Boolean heating1HasRearWindowHeatingEnabled(Integer heating1) {
+	return (heating1 == 1 || heating1 == 2 || heating1 == 4)
+}
+
+Boolean heating1HasSteeringHeatingEnabled(Integer heating1) {
+	return (heating1 == 1 || heating1 == 3 || heating1 == 4)
+}
+
+Integer getDefaultSeatLevel(ArrayList supportedLevels) {
+	// There are multiple 'Off' states ('0' and '2').  '0' should be allowed for all vehicle types,
+	// but prefer the supported 'Off' state whenever possible.
+	Integer defaultLevel = 0
+	if (supportedLevels.contains(2)) {
+		defaultLevel = 2
+	}
+
+	return defaultLevel
+}
+
+// Converts raw climate seat capabilities from Bluelink to what we store in the device.
+// (Filters out data we don't care about, and does some upfront processing on some strings.)
+Map sanitizeSeatConfigs(ArrayList seatConfigs) {
+	def sanitizedSeatConfigs = [:]
+
+	seatConfigs?.each{ seatConfig ->
+		if (seatConfig.seatLocationID == null) {
+			log("Seat location doesn't have a locationID", "debug")
+		}
+		else if (!CLIMATE_SEAT_LOCATIONS.containsKey(seatConfig.seatLocationID)) {
+			log("Seat location ${seatConfig.seatLocationID} is not recognized and will be ignored.  Contact developer to add support for this seat.", "info")
+		}
+		else {
+			def supportedLevelsString = seatConfig.supportedLevels ?: "0"
+
+			// This is a comma-delimited string, which isn't that useful to us.
+			// Convert it to an integer list before saving, which is much easier to work with.
+			sanitizedSeatConfigs[seatConfig.seatLocationID] = [
+				"supportedLevels" : supportedLevelsString.split(',').collect{ it as Integer }
+			]
+		}
+	}
+
+	return sanitizedSeatConfigs
+}
+
+// Cache the vehicle's climate capabilities to the device.
+void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleDetails)
+{
+	def climateCapabilities = [
+		"tempMin" : vehicleDetails.additionalVehicleDetails?.minTemp ?: CLIMATE_TEMP_MIN_DEFAULT,
+		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: CLIMATE_TEMP_MAX_DEFAULT,
+		"steeringWheelHeatCapable" : (vehicleDetails.steeringWheelHeatCapable ?: "NO") == "YES",
+		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs)
+	]
+
+	// Need to convert to a child device to be able to save to the device.
+	def childDevice = getChildDevice(device.deviceNetworkId)
+	if (childDevice == null) {
+		 log("Could not cache climate capabilities.  ${device.getDisplayName()} does not appear to be a child device of this app.  Please delete the device and re-discover your vehicle through this app.", "error")
+	}
+	else {
+		childDevice.setClimateCapabilities(climateCapabilities)
+	}
+}
+
+// Migrates climate profiles exactly from the previous version, despite what the vehicle actually supports.
+// This will continue to work as it did before, and features will be add or removed according to vehicle
+// capabilities the next time the user modifies the profile for their vehicle.
+void migrateClassicProfiles() {
+	// Check if one setting exists before doing the full migration.
+	// If we've already cleaned it up, the data has already been migrated.
+	if (app.getSetting("Summer_climate") != null) {
+		log("Attempting to migrateClassicProfiles", "trace")
+
+		def climateProfileStorage = [:]
+		CLIMATE_PROFILES.each { profileName ->
+			def climateProfile = [:]
+			climateProfile.airCtrl = app.getSetting("${profileName}_climate") ? 1: 0
+			climateProfile.defrost = app.getSetting("${profileName}_defrost")
+			climateProfile.heating1 = app.getSetting("${profileName}_heatAcc") ? 1 : 0
+			climateProfile.igniOnDuration = app.getSetting("${profileName}_ignitionDur")
+
+			def temp_setting = app.getSetting("${profileName}_temp")
+			if (temp_setting == "LO") {
+				temp_setting = CLIMATE_TEMP_MIN_DEFAULT
+			}
+			else if (temp_setting == "HI") {
+				temp_setting = CLIMATE_TEMP_MAX_DEFAULT
+			}
+			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting]
+
+			climateProfileStorage[profileName] = climateProfile
+		}
+
+		getChildDevices().each { device ->
+			if (device.getClimateProfiles() == null) {
+				log("Migrated climate profile to ${device.getDisplayName()}", "info")
+				device.setClimateProfiles(climateProfileStorage)
+			}
+		}
+
+		if (DELETE_CLASSIC_CLIMATE_PROFILES) {
+			log("Deleting classic climate profiles.", "debug")
+
+			// Clean up deprected profiles.
+			CLIMATE_PROFILES.each { profileName ->
+				app.removeSetting("${profileName}_climate")
+				app.removeSetting("${profileName}_temp")
+				app.removeSetting("${profileName}_defrost")
+				app.removeSetting("${profileName}_heatAcc")
+				app.removeSetting("${profileName}_ignitionDur")
+			}
+		}
+	}
+}
+
+///
 // Supporting helpers
 ///
 private void sendEventHelper(com.hubitat.app.DeviceWrapper device, String sentCommand, Boolean result)
@@ -729,7 +1216,7 @@ private void listDiscoveredVehicles() {
 	builder << "<ul>"
 	children.each {
 		if (it != null) {
-			builder << "<li><a href='/device/edit/${it.getId()}'>${it.getLabel()}</a></li>"
+			builder << "<li><a href='/device/edit/${it.getId()}'>${it.getDisplayName()}</a></li>"
 		}
 	}
 	builder << "</ul>"
@@ -775,10 +1262,15 @@ private LinkedHashMap<String, String> getDefaultHeaders(com.hubitat.app.DeviceWr
 	return theHeaders
 }
 
+private getChildDeviceNetId(String Vin)
+{
+	return "Hyundai_" + Vin
+}
+
 private com.hubitat.app.ChildDeviceWrapper CreateChildDriver(String Name, String Vin)
 {
 	log("CreateChildDriver called", "trace")
-	String vehicleNetId = "Hyundai_" + Vin
+	String vehicleNetId = getChildDeviceNetId(Vin)
 	com.hubitat.app.ChildDeviceWrapper newDevice = null
 	try {
 			newDevice = addChildDevice(
@@ -843,7 +1335,7 @@ def log(Object data, String type) {
 				log.error "${data}"
 				break
 			default:
-				log.error("-- ${device.label} -- Invalid Log Setting")
+				log.error("-- ${app.label} -- Invalid Log Setting")
 		}
 	}
 }

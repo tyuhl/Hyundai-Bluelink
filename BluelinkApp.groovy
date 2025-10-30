@@ -43,10 +43,19 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate" }
+static String appVersion() { return "1.0.7-beta.climate.1" }
 def setVersion() {
-	state.name = "Hyundai Bluelink Application"
-	state.version = appVersion()
+	if (state.version != appVersion())
+	{
+		// First install will be null, so don't request a refresh before they've set up.
+		if (state.version != null) {
+			log("Version updated from ${state.version} to ${appVersion()}.  Queued vehicle refresh request.", "info")
+			state.needsVehicleRefresh = true
+		}
+
+		state.name = "Hyundai Bluelink Application"
+		state.version = appVersion()
+	}
 }
 
 @Field static String global_apiURL = "https://api.telematics.hyundaiusa.com"
@@ -146,7 +155,7 @@ void cleanAppClimateProfileSettings(String profileName) {
 	}
 }
 
-Map gatherClimateProfileSettings(String profileName, Map climateProfiles, Map climateCapabilities)
+Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, Map climateCapabilities)
 {
 	def profileSettings = [:]
 
@@ -167,7 +176,8 @@ Map gatherClimateProfileSettings(String profileName, Map climateProfiles, Map cl
 
 	CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
 			def current_value = 0
-			def seatConfig = climateCapabilities?.seatConfigs[seatId]
+			def hasSeat = climateCapabilities.seatConfigs.containsKey(seatId)
+			def seatConfig = hasSeat ? climateCapabilities.seatConfigs[seatId] : null
 			if (seatConfig != null) {
 				current_value = climateProfile?.seatHeaterVentInfo?."${locationInfo.name}SeatHeatState"
 
@@ -203,13 +213,13 @@ def profilesPage() {
 			else {
 				// Identify what climate options are available to the user.
 				def climateProfiles = childDevice.getClimateProfiles()
-				def climateCapabilities = childDevice.getClimateCapabilities()
+				def climateCapabilities = getSanitizedClimateCapabilities(childDevice)
 
 				CLIMATE_PROFILES.each { profileName ->
 					// Delete the current vehicle settings in the app so we can change their values.
 					cleanAppClimateProfileSettings(profileName)
 
-					def climateProfileSettings = gatherClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
+					def climateProfileSettings = getSanitizedClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
 
 					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
 						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting", defaultValue: climateProfileSettings.airctrl)
@@ -274,7 +284,7 @@ def saveClimateProfiles() {
 			log "Could not remap ${climate_vehicle.getDisplayName()} to childDevice to save climate profiles."
 		}
 		else {
-			def climateCapabilities = childDevice.getClimateCapabilities()
+			def climateCapabilities = getSanitizedClimateCapabilities(childDevice)
 
 			def climateProfileStorage = [:]
 			CLIMATE_PROFILES.each { profileName ->
@@ -349,9 +359,6 @@ def debugPage() {
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
-		section {
-			input(name: "resetVehicleDetails", type: "button", title: "Force Refresh Vehicle Details", submitOnChange: true)
-		}
 		getDebugClimateCapabilitiesLink()
 	}
 }
@@ -384,7 +391,7 @@ def debugClimateCapabilitiesPage() {
 				}
 			}
 			else {
-				def climateCapabilities = childDevice.getClimateCapabilities()
+				def climateCapabilities = getSanitizedClimateCapabilities(childDevice)
 				log("climateCapabilities $climateCapabilities", "trace")
 
 				app.removeSetting("vehicleClimateCapability_tempMin")
@@ -396,14 +403,14 @@ def debugClimateCapabilitiesPage() {
 					app.removeSetting("vehicleClimateCapability_seatConfigs_${seatId}_supportedLevels")
 				}
 
-				def current_tempMin = climateCapabilities?.tempMin ?: CLIMATE_TEMP_MIN_DEFAULT
-				def current_tempMax = climateCapabilities?.tempMax ?: CLIMATE_TEMP_MAX_DEFAULT
-				def current_steeringWheelHeatCapable = climateCapabilities?.steeringWheelHeatCapable ?: false
+				def current_tempMin = climateCapabilities.tempMin
+				def current_tempMax = climateCapabilities.tempMax
+				def current_steeringWheelHeatCapable = climateCapabilities.steeringWheelHeatCapable
 
 				def current_seatConfigs = [:]
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
 					def seatConfig = [:]
-					seatConfig.hasSeat = climateCapabilities?.seatConfigs?.containsKey(seatId) ?: false
+					seatConfig.hasSeat = climateCapabilities.seatConfigs.containsKey(seatId)
 					seatConfig.supportedLevels = seatConfig.hasSeat ? climateCapabilities.seatConfigs[seatId].supportedLevels : []
 					current_seatConfigs[seatId] = seatConfig
 				}
@@ -486,16 +493,13 @@ def appButtonHandler(btn) {
 	switch (btn) {
 		case 'discover':
 			authorize()
-			getVehicles()
+			getVehicles(true)
 			break
 		case 'refreshToken':
 			refreshToken()
 			break
 		case 'initialize':
 			initialize()
-			break
-		case 'resetVehicleDetails':
-			getVehicles(false, true)
 			break
 		default:
 			log("Invalid Button In Handler", "error")
@@ -534,6 +538,9 @@ void initialize() {
 void authorize() {
 	log("authorize called", "trace")
 
+	// Periodically ensure the app version has been updated, in case the user didn't click 'Done' in the App after an update.
+	setVersion()
+
 	// make sure there are no outstanding token refreshes scheduled
 	unschedule()
 
@@ -550,6 +557,12 @@ void authorize() {
 	try
 	{
 		httpPostJson(params) { response -> authResponse(response) }
+
+		if (state.needsVehicleRefresh)
+		{
+			log("Refreshing vehicles details after authorize due to 'needsVehicleRefresh' being set.", "debug")
+			getVehicles()
+		}
 	}
 	catch (groovyx.net.http.HttpResponseException e)
 	{
@@ -559,6 +572,9 @@ void authorize() {
 
 void refreshToken(Boolean refresh=false) {
 	log("refreshToken called", "trace")
+
+	// Periodically ensure the app version has been updated, in case the user didn't click 'Done' in the App after an update.
+	setVersion()
 
 	if (state.refresh_token != null)
 	{
@@ -574,6 +590,12 @@ void refreshToken(Boolean refresh=false) {
 		try
 		{
 			httpPostJson(params) { response -> authResponse(response) }
+
+			if (state.needsVehicleRefresh)
+			{
+				log("Refreshing vehicles details after refreshToken to 'needsVehicleRefresh' being set.", "debug")
+				getVehicles()
+			}
 		}
 		catch (java.net.SocketTimeoutException e)
 		{
@@ -628,7 +650,7 @@ def authResponse(response)
 	}
 }
 
-def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
+def getVehicles(Boolean createNewVehicleDevices=false, Boolean retry=false)
 {
 	log("getVehicles called", "trace")
 
@@ -654,7 +676,7 @@ def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
 		{
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
-			getVehicles(true)
+			getVehicles(createNewVehicleDevices, true)
 		}
 		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
 		return
@@ -665,20 +687,21 @@ def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
 	}
 	else {
 			reJson.enrolledVehicleDetails.each{ vehicle ->
-				log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
 
-				com.hubitat.app.ChildDeviceWrapper childDevice = null
-				if (resetAllVehicles) {
-					// Try to get the device if it already exists.
-					childDevice = getChildDevice(getChildDeviceNetId(vehicle.vehicleDetails.vin))
+				if (createNewVehicleDevices) {
+					// Only log while creating new vehicles, so we don't spam during Refresh.
+					log("Found vehicle: ${vehicle.vehicleDetails.nickName} with VIN: ${vehicle.vehicleDetails.vin}", "info")
 				}
-				else if (childDevice == null) {
+
+				// Try to get the device if it already exists.
+				com.hubitat.app.ChildDeviceWrapper childDevice = getChildDevice(getChildDeviceNetId(vehicle.vehicleDetails.vin))
+				if (childDevice == null && createNewVehicleDevices) {
 					// Try to create a new device.
 					childDevice = CreateChildDriver(vehicle.vehicleDetails.nickName, vehicle.vehicleDetails.vin)
 				}
 
 				if (childDevice != null) {
-					//populate attributes
+					//populate/update attributes
 					safeSendEvent(childDevice, "NickName", vehicle.vehicleDetails.nickName)
 					safeSendEvent(childDevice, "VIN", vehicle.vehicleDetails.vin)
 					safeSendEvent(childDevice, "RegId", vehicle.vehicleDetails.regid)
@@ -693,55 +716,9 @@ def getVehicles(Boolean retry=false, Boolean resetAllVehicles=false)
 				 }
 			}
 	}
-}
 
-void updateVehicleOdometer(com.hubitat.app.DeviceWrapper device, Boolean retry=false) 
-{
-	log("updateVehicleOdometer called", "trace")
-
-	if( !stay_logged_in ) {
-		authorize()
-	}
-
-	def uri = global_apiURL + "/ac/v2/enrollment/details/" + user_name
-	def headers = [ access_token: state.access_token, client_id: client_id, includeNonConnectedVehicles : "Y"]
-	def params = [ uri: uri, headers: headers ]
-	log("updateVehicleOdometer ${params}", "debug")
-
-	//add error checking
-	LinkedHashMap  reJson = []
-	try
-	{
-		httpGet(params) { response ->
-			def reCode = response.getStatus()
-			reJson = response.getData()
-			log("reCode: ${reCode}", "debug")
-			logJsonHelper("updateVehicleOdometer", reJson)
-		}
-	}
-	catch (groovyx.net.http.HttpResponseException e)
-	{
-		if (e.getStatusCode() == 401 && !retry)
-		{
-			log('Authorization token expired, will refresh and retry.', 'warn')
-			refreshToken()
-			updateVehicleOdometer(device, true)
-		}
-		log("updateVehicleOdometer failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
-		return
-	}
-
-	if (reJson.enrolledVehicleDetails == null) {
-		log("No vehicles found to read odometer.", "info")
-	}
-	else {
-		String theVIN = device.currentValue("VIN")
-		reJson.enrolledVehicleDetails.each{ vehicle ->
-				if (vehicle.vehicleDetails.vin == theVIN) {
-					safeSendEvent(device, "Odometer", vehicle.vehicleDetails.odometer)
-				}
-		}
-	}
+	// If a refresh was needed, we can clear out that flag now.
+	state.remove("needsVehicleRefresh")
 }
 
 void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = false, Boolean retry=false)
@@ -782,6 +759,7 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
 		safeSendEvent(device, "LastRefreshTime", reJson.vehicleStatus.dateTime)
 		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
+		safeSendEvent(device, "Odometer", reJson.vehicleStatus.odometer)
 		if (device.currentValue("isEV") == "true") {
 			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
 			safeSendEvent(device, "EVBatteryPluggedIn", reJson.vehicleStatus.evStatus.batteryPlugin, "true", "false")
@@ -900,7 +878,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	}
 	else {
 		def climateProfiles = childDevice.getClimateProfiles()
-		if (!climateProfiles.containsKey(profile)) {
+		if (climateProfiles == null || !climateProfiles.containsKey(profile)) {
 			// Empty should always use defaults without complaint
 			if (!profile.isEmpty()) {
 				log("Ignoring profile '$profile' when starting vehicle ${device.getDisplayName()} because it doesn't exist.", "warn")
@@ -1105,6 +1083,34 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 	else {
 		childDevice.setClimateCapabilities(climateCapabilities)
 	}
+}
+
+// Gets the vehicle's climate capabilities cached from the device and handles missing data.
+Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
+{
+	Map vehicleDetails= device.getClimateCapabilities()
+
+	if (vehicleDetails == null) {
+		vehicleDetails = [:]
+	}
+
+	if (!vehicleDetails.containsKey("tempMin")){
+		vehicleDetails.tempMin = CLIMATE_TEMP_MIN_DEFAULT
+	}
+
+	if (!vehicleDetails.containsKey("tempMax")){
+		vehicleDetails.tempMax = CLIMATE_TEMP_MAX_DEFAULT
+	}
+
+	if (!vehicleDetails.containsKey("steeringWheelHeatCapable")){
+		vehicleDetails.steeringWheelHeatCapable = false
+	}
+
+	if (!vehicleDetails.containsKey("seatConfigs")){
+		vehicleDetails.seatConfigs = [:]
+	}
+
+	return vehicleDetails
 }
 
 // Migrates climate profiles exactly from the previous version, despite what the vehicle actually supports.
@@ -1379,4 +1385,3 @@ private void safeSendEvent(com.hubitat.app.DeviceWrapper device, String attrib, 
 		}
 	}
 }
-

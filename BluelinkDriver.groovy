@@ -24,10 +24,10 @@
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  */
 
-String appVersion()   { return "1.0.4" }
-def setVersion(){
+String appVersion()   { return "1.0.5-beta.climate.1" }
+def setVersion() {
 	state.name = "Hyundai Bluelink Driver"
-	state.version = "1.0.4"
+	state.version = appVersion()
 }
 
 metadata {
@@ -126,7 +126,6 @@ void refresh()
 {
 	log("refresh called", "trace")
 	parent.getVehicleStatus(device, fullRefresh, false)
-	parent. updateVehicleOdometer(device)
 	updateHtml()
 }
 
@@ -247,7 +246,7 @@ private determineLogLevel(data) {
 }
 
 def log(Object data, String type) {
-	data = "-- ${device.label} -- ${data ?: ''}"
+	data = "-- ${device.getDisplayName()} -- ${data ?: ''}"
 
 	if (determineLogLevel(type) >= determineLogLevel(settings?.logging ?: "INFO")) {
 		switch (type?.toUpperCase()) {
@@ -267,7 +266,7 @@ def log(Object data, String type) {
 				log.error "${data}"
 				break
 			default:
-				log.error("-- ${device.label} -- Invalid Log Setting")
+				log.error("-- ${device.getDisplayName()} -- Invalid Log Setting")
 		}
 	}
 }

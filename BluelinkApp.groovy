@@ -177,7 +177,7 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
 			def current_value = 0
 			def hasSeat = climateCapabilities.seatConfigs.containsKey(seatId)
-			def seatConfig = hasSeat ? climateCapabilities.seatConfigs.seatId : null
+			def seatConfig = hasSeat ? climateCapabilities.seatConfigs[seatId] : null
 			if (seatConfig != null) {
 				current_value = climateProfile?.seatHeaterVentInfo?."${locationInfo.name}SeatHeatState"
 

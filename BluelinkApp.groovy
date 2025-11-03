@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.2" }
+static String appVersion() { return "1.0.7-beta.climate.3" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -869,6 +869,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	}
 
 	def isEV = device.currentValue("isEV") == "true"
+	def vehicleGen = device.currentValue("vehicleGeneration");
 	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/start' : '/ac/v2/rcs/rsc/start')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
@@ -897,11 +898,17 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 
 	String theVIN = device.currentValue("VIN")
 	String theCar = device.currentValue("NickName")
-	def body = [
+	def body;
+	if  (vehicleGen == "3") {
+		body = climatebody
+	} 
+	else {
+ 		body = [
 			"username": user_name,
 			"vin": theVIN,
 			"Ims": 0
-	] + climateBody
+		] + climateBody
+	}
 	String sBody = JsonOutput.toJson(body).toString()
 
 	def params = [ uri: uri, headers: headers, body: sBody, timeout: 10 ]

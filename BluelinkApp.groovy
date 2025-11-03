@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.1" }
+static String appVersion() { return "1.0.7-beta.climate.2" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -755,12 +755,18 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 		safeSendEvent(device, 'DoorLocks', reJson.vehicleStatus.doorLock, 'Locked', 'Unlocked')
 		safeSendEvent(device, 'Hood', reJson.vehicleStatus.hoodOpen, 'Open', 'Closed')
 		safeSendEvent(device, 'Trunk', reJson.vehicleStatus.trunkOpen, 'Open', 'Closed')
-		safeSendEvent(device, "Range", reJson.vehicleStatus.dte.value)
-		safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
+		if (reJson.vehicleStatus.dte?.value != null) {
+			safeSendEvent(device, "Range", reJson.vehicleStatus.dte.value)
+		}
+		if (reJson.vehicleStatus.battery?.batSoc != null) {
+			safeSendEvent(device, "BatterySoC", reJson.vehicleStatus.battery.batSoc)
+		}
 		safeSendEvent(device, "LastRefreshTime", reJson.vehicleStatus.dateTime)
 		safeSendEvent(device, "TirePressureWarning", reJson.vehicleStatus.tirePressureLamp.tirePressureWarningLampAll, "true", "false")
-		safeSendEvent(device, "Odometer", reJson.vehicleStatus.odometer)
-		if (device.currentValue("isEV") == "true") {
+		if (reJson.vehicleStatus.odometer != null) {
+			safeSendEvent(device, "Odometer", reJson.vehicleStatus.odometer)
+		}
+		if (device.currentValue("isEV") == "true" && reJson.vehicleStatus?.evStatus != null) {
 			safeSendEvent(device, "EVBatteryCharging", reJson.vehicleStatus.evStatus.batteryCharge, "true", "false")
 			safeSendEvent(device, "EVBatteryPluggedIn", reJson.vehicleStatus.evStatus.batteryPlugin, "true", "false")
 			safeSendEvent(device, "EVBattery", reJson.vehicleStatus.evStatus.batteryStatus)

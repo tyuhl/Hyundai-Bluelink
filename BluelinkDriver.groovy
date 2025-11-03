@@ -24,7 +24,7 @@
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  */
 
-String appVersion()   { return "1.0.5-beta.climate.1" }
+String appVersion()   { return "1.0.5-beta.climate.2" }
 def setVersion() {
 	state.name = "Hyundai Bluelink Driver"
 	state.version = appVersion()
@@ -125,6 +125,11 @@ void initialize() {
 void refresh()
 {
 	log("refresh called", "trace")
+	
+	// Not all vehicles have "odometer" in vehicleStatus, so need to call this to update that for now.
+	// Probably not a bad idea to allow this to refresh the other vehicle information too...
+	parent.getVehicles()
+	
 	parent.getVehicleStatus(device, fullRefresh, false)
 	updateHtml()
 }
@@ -270,4 +275,3 @@ def log(Object data, String type) {
 		}
 	}
 }
-

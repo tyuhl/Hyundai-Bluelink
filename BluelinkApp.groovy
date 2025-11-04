@@ -900,7 +900,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	String theCar = device.currentValue("NickName")
 	def body;
 	if  (isEV) {
-		body = climatebody
+		body = climateBody
 	} 
 	else {
  		body = [

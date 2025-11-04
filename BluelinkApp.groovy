@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.2.gen2hack" }
+static String appVersion() { return "1.0.7-beta.climate.2.gen2hack.2" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -952,7 +952,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 			Start(device, profile,true)
 			return
 		}
-		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.data}", "error")
 		sendEventHelper(device, "Start", false)
 	}
 }

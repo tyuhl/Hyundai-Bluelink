@@ -155,7 +155,7 @@ void cleanAppClimateProfileSettings(String profileName) {
 	}
 }
 
-Map getSanitizedClimateProfileSettings(com.hubitat.app.ChildDeviceWrapper childDevice, String profileName, Map climateProfiles, Map climateCapabilities)
+Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, Map climateCapabilities)
 {
 	def profileSettings = [:]
 
@@ -167,7 +167,7 @@ Map getSanitizedClimateProfileSettings(com.hubitat.app.ChildDeviceWrapper childD
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
 
-	if (childDevice.currentValue("vehicleGeneration") != "2") {
+	if (climateCapabilities.igniOnDurationCapable) {
 		profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
 	}
 	
@@ -222,7 +222,7 @@ def profilesPage() {
 					// Delete the current vehicle settings in the app so we can change their values.
 					cleanAppClimateProfileSettings(profileName)
 
-					def climateProfileSettings = getSanitizedClimateProfileSettings(childDevice, profileName, climateProfiles, climateCapabilities)
+					def climateProfileSettings = getSanitizedClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
 
 					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
 						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting", defaultValue: climateProfileSettings.airctrl)
@@ -237,7 +237,7 @@ def profilesPage() {
 							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
 						}
 
-						if (childDevice.currentValue("vehicleGeneration") != "2") {
+						if (climateCapabilities.igniOnDurationCapable) {
 							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
 						}
 					}
@@ -302,7 +302,7 @@ def saveClimateProfiles() {
 				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
 				climateProfile.heating1 = getHeating1Value(rearWindowHeat, steeringHeat)
 
-				if (childDevice.currentValue("vehicleGeneration") != "2") {
+				if (climateCapabilities.igniOnDurationCapable) {
 					climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
 				}
 
@@ -365,6 +365,12 @@ def debugPage() {
 		}
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
+		}
+		section {
+			paragraph "Temporary settings for testing Gen 2 climate support"
+			input(name: "sendIms", type: "bool", title: "Send Ims", defaultValue: false)
+			input(name: "sendUsername", type: "bool", title: "Send username", defaultValue: false)
+			input(name: "sendVin", type: "bool", title: "Send vin", defaultValue: false)
 		}
 		getDebugClimateCapabilitiesLink()
 	}
@@ -902,13 +908,25 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		}
 	}
 
-	String theVIN = device.currentValue("VIN")
 	String theCar = device.currentValue("NickName")
-	def body = [
-			"username": user_name,
-			"vin": theVIN,
-			"Ims": 0
-	] + climateBody
+
+	def body = [:]
+
+	String theVIN = device.currentValue("VIN")
+
+	// TEMPORARY HACK FOR TESTING GEN2
+	if (app.getSetting("sendUsername")) {
+		body.username = user_name
+	}
+	if (app.getSetting("sendVin")) {
+		body.vin = theVIN
+	}
+	if (app.getSetting("sendIms")) {
+		body.Ims = 0
+	}
+
+	body += climateBody
+
 	String sBody = JsonOutput.toJson(body).toString()
 
 	def params = [ uri: uri, headers: headers, body: sBody, timeout: 10 ]
@@ -1086,6 +1104,10 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: CLIMATE_TEMP_MAX_DEFAULT,
 		"steeringWheelHeatCapable" : (vehicleDetails.steeringWheelHeatCapable ?: "NO") == "YES",
 		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs),
+
+		// Gen 2 EVs don't support setting "igniOnDuration".
+		// Not technically in vehicleDetails, but simplifies the rest of the code.
+		"igniOnDurationCapable" : (device.currentValue("isEV") != "true") || (device.currentValue("vehicleGeneration") != "2")
 	]
 
 	// Need to convert to a child device to be able to save to the device.
@@ -1101,29 +1123,33 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 // Gets the vehicle's climate capabilities cached from the device and handles missing data.
 Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
 {
-	Map vehicleDetails= device.getClimateCapabilities()
+	Map climateCapabilities= device.getClimateCapabilities()
 
-	if (vehicleDetails == null) {
-		vehicleDetails = [:]
+	if (climateCapabilities == null) {
+		climateCapabilities = [:]
 	}
 
-	if (!vehicleDetails.containsKey("tempMin")){
-		vehicleDetails.tempMin = CLIMATE_TEMP_MIN_DEFAULT
+	if (!climateCapabilities.containsKey("tempMin")){
+		climateCapabilities.tempMin = CLIMATE_TEMP_MIN_DEFAULT
 	}
 
-	if (!vehicleDetails.containsKey("tempMax")){
-		vehicleDetails.tempMax = CLIMATE_TEMP_MAX_DEFAULT
+	if (!climateCapabilities.containsKey("tempMax")){
+		climateCapabilities.tempMax = CLIMATE_TEMP_MAX_DEFAULT
 	}
 
-	if (!vehicleDetails.containsKey("steeringWheelHeatCapable")){
-		vehicleDetails.steeringWheelHeatCapable = false
+	if (!climateCapabilities.containsKey("steeringWheelHeatCapable")){
+		climateCapabilities.steeringWheelHeatCapable = false
 	}
 
-	if (!vehicleDetails.containsKey("seatConfigs")){
-		vehicleDetails.seatConfigs = [:]
+	if (!climateCapabilities.containsKey("seatConfigs")){
+		climateCapabilities.seatConfigs = [:]
 	}
 
-	return vehicleDetails
+	if (!climateCapabilities.containsKey("igniOnDurationCapable")){
+		climateCapabilities.igniOnDurationCapable = true
+	}
+
+	return climateCapabilities
 }
 
 // Migrates climate profiles exactly from the previous version, despite what the vehicle actually supports.

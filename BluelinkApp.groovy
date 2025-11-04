@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.2" }
+static String appVersion() { return "1.0.7-beta.climate.2.gen2hack" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -155,7 +155,7 @@ void cleanAppClimateProfileSettings(String profileName) {
 	}
 }
 
-Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, Map climateCapabilities)
+Map getSanitizedClimateProfileSettings(com.hubitat.app.ChildDeviceWrapper childDevice, String profileName, Map climateProfiles, Map climateCapabilities)
 {
 	def profileSettings = [:]
 
@@ -166,7 +166,10 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	profileSettings.airctrl = climateProfile?.airCtrl ?: true
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
-	profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+
+	if (childDevice.currentValue("vehicleGeneration") != "2") {
+		profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+	}
 	
 	def heating1 = climateProfile?.heating1 ?: 0
 	profileSettings.steeringHeat = heating1HasSteeringHeatingEnabled(heating1)
@@ -219,7 +222,7 @@ def profilesPage() {
 					// Delete the current vehicle settings in the app so we can change their values.
 					cleanAppClimateProfileSettings(profileName)
 
-					def climateProfileSettings = getSanitizedClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
+					def climateProfileSettings = getSanitizedClimateProfileSettings(childDevice, profileName, climateProfiles, climateCapabilities)
 
 					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
 						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting", defaultValue: climateProfileSettings.airctrl)
@@ -234,7 +237,9 @@ def profilesPage() {
 							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
 						}
 
-						input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+						if (childDevice.currentValue("vehicleGeneration") != "2") {
+							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+						}
 					}
 
 					if (!climateCapabilities.seatConfigs.isEmpty()) {
@@ -297,7 +302,9 @@ def saveClimateProfiles() {
 				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
 				climateProfile.heating1 = getHeating1Value(rearWindowHeat, steeringHeat)
 
-				climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
+				if (childDevice.currentValue("vehicleGeneration") != "2") {
+					climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
+				}
 
 				if (!climateCapabilities.seatConfigs.isEmpty())
 				{
@@ -1078,7 +1085,7 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 		"tempMin" : vehicleDetails.additionalVehicleDetails?.minTemp ?: CLIMATE_TEMP_MIN_DEFAULT,
 		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: CLIMATE_TEMP_MAX_DEFAULT,
 		"steeringWheelHeatCapable" : (vehicleDetails.steeringWheelHeatCapable ?: "NO") == "YES",
-		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs)
+		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs),
 	]
 
 	// Need to convert to a child device to be able to save to the device.

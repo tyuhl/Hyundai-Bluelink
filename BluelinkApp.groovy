@@ -899,7 +899,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	String theVIN = device.currentValue("VIN")
 	String theCar = device.currentValue("NickName")
 	def body;
-	if  (vehicleGen == "3") {
+	if  (isEV) {
 		body = climatebody
 	} 
 	else {

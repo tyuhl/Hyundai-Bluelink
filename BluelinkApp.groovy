@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.2.gen2hack.2" }
+static String appVersion() { return "1.0.7-beta.climate.2.gen2hack.3" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -295,7 +295,7 @@ def saveClimateProfiles() {
 			CLIMATE_PROFILES.each { profileName ->
 				def climateProfile = [:]
 				climateProfile.airCtrl = app.getSetting("climate_${profileName}_airctrl") ? 1: 0
-				climateProfile.airTemp = ["unit" : 1, "value" : app.getSetting("climate_${profileName}_airTemp")]
+				climateProfile.airTemp = ["unit" : 1, "value" : app.getSetting("climate_${profileName}_airTemp").toString()]
 				climateProfile.defrost = app.getSetting("climate_${profileName}_defrost")
 
 				def rearWindowHeat = app.getSetting("climate_${profileName}_rearWindowHeat")

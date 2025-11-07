@@ -882,6 +882,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	}
 
 	def isEV = device.currentValue("isEV") == "true"
+	def vehicleGen = device.currentValue("vehicleGeneration");
 	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/start' : '/ac/v2/rcs/rsc/start')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')

@@ -24,7 +24,7 @@
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  */
 
-String appVersion()   { return "1.0.5-beta.climate.2" }
+String appVersion()   { return "1.0.5-beta.climate.3" }
 def setVersion() {
 	state.name = "Hyundai Bluelink Driver"
 	state.version = appVersion()
@@ -69,7 +69,7 @@ metadata {
 				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
 				attribute "EVstatusHtml", "string"
-
+			
 				command "Lock"
 				command "Unlock"
 				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Profile3"]] ]

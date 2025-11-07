@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.2.gen2hack.3" }
+static String appVersion() { return "1.0.7-beta.climate.4" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -366,12 +366,6 @@ def debugPage() {
 		section {
 			input 'initialize', 'button', title: 'initialize', submitOnChange: true
 		}
-		section {
-			paragraph "Temporary settings for testing Gen 2 climate support"
-			input(name: "sendIms", type: "bool", title: "Send Ims", defaultValue: false)
-			input(name: "sendUsername", type: "bool", title: "Send username", defaultValue: false)
-			input(name: "sendVin", type: "bool", title: "Send vin", defaultValue: false)
-		}
 		getDebugClimateCapabilitiesLink()
 	}
 }
@@ -410,6 +404,7 @@ def debugClimateCapabilitiesPage() {
 				app.removeSetting("vehicleClimateCapability_tempMin")
 				app.removeSetting("vehicleClimateCapability_tempMax")
 				app.removeSetting("vehicleClimateCapability_steeringWheelHeatCapable")
+				app.removeSetting("vehicleClimateCapability_igniOnDurationCapable")
 
 				// Clear out all seat location names that we support.
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -419,6 +414,7 @@ def debugClimateCapabilitiesPage() {
 				def current_tempMin = climateCapabilities.tempMin
 				def current_tempMax = climateCapabilities.tempMax
 				def current_steeringWheelHeatCapable = climateCapabilities.steeringWheelHeatCapable
+				def current_igniOnDurationCapable = climateCapabilities.igniOnDurationCapable
 
 				def current_seatConfigs = [:]
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -432,6 +428,7 @@ def debugClimateCapabilitiesPage() {
 					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
 					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
 					input(name: "vehicleClimateCapability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
+					input(name: "vehicleClimateCapability_igniOnDurationCapable", type: "bool", title: "Ignition On Duration Capable", defaultValue: current_igniOnDurationCapable)
 				}
 
 				section("Seat Configurations") {
@@ -483,6 +480,7 @@ def saveClimateCapabilities() {
 			climateCapabilities.tempMin = vehicleClimateCapability_tempMin
 			climateCapabilities.tempMax = vehicleClimateCapability_tempMax
 			climateCapabilities.steeringWheelHeatCapable = vehicleClimateCapability_steeringWheelHeatCapable
+			climateCapabilities.igniOnDurationCapable = vehicleClimateCapability_igniOnDurationCapable
 
 			def seatConfigs = [:]
 			CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -738,6 +736,11 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 {
 	log("getVehicleStatus() called", "trace")
 
+	// TODO - Remove these after gen2hack work has been cleaned up on tester hub.
+	app.removeSetting("sendIms")
+	app.removeSetting("sendUsername")
+	app.removeSetting("sendVin")
+
 	if( !stay_logged_in ) {
 		authorize()
 	}
@@ -882,7 +885,6 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	}
 
 	def isEV = device.currentValue("isEV") == "true"
-	def vehicleGen = device.currentValue("vehicleGeneration");
 	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/start' : '/ac/v2/rcs/rsc/start')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
@@ -913,16 +915,11 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 
 	def body = [:]
 
-	String theVIN = device.currentValue("VIN")
+	if (!isEV) {
+		String theVIN = device.currentValue("VIN")
 
-	// TEMPORARY HACK FOR TESTING GEN2
-	if (app.getSetting("sendUsername")) {
 		body.username = user_name
-	}
-	if (app.getSetting("sendVin")) {
 		body.vin = theVIN
-	}
-	if (app.getSetting("sendIms")) {
 		body.Ims = 0
 	}
 
@@ -1127,6 +1124,7 @@ Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
 	Map climateCapabilities= device.getClimateCapabilities()
 
 	if (climateCapabilities == null) {
+		log "getSanitizedClimateCapabilities: No climate cabilities found on ${device.getDisplayName}.  Using defaults.", "debug"
 		climateCapabilities = [:]
 	}
 
@@ -1177,7 +1175,7 @@ void migrateClassicProfiles() {
 			else if (temp_setting == "HI") {
 				temp_setting = CLIMATE_TEMP_MAX_DEFAULT
 			}
-			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting]
+			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting.toString()]
 
 			climateProfileStorage[profileName] = climateProfile
 		}

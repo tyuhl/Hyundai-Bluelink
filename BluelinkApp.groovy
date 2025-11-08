@@ -298,14 +298,7 @@ def saveClimateProfiles() {
 				climateProfile.defrost = app.getSetting("climate_${profileName}_defrost")
 
 				def airTemp = app.getSetting("climate_${profileName}_airTemp")
-				if (childDevice.currentValue("isEV") == "true")
-				{
-					climateProfile.airTemp = ["unit" : 1, "value" : airTemp.toString()]
-				}
-				else {
-					climateProfile.airTemp = ["unit" : 1, "value" : airTemp]
-				}
-
+				climateProfile.airTemp = ["unit" : 1, "value" : airTemp.toString()]
 
 				def rearWindowHeat = app.getSetting("climate_${profileName}_rearWindowHeat")
 				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
@@ -1169,36 +1162,29 @@ void migrateClassicProfiles() {
 	if (app.getSetting("Summer_climate") != null) {
 		log("Attempting to migrateClassicProfiles", "trace")
 
+		def climateProfileStorage = [:]
+		CLIMATE_PROFILES.each { profileName ->
+			def climateProfile = [:]
+			climateProfile.airCtrl = app.getSetting("${profileName}_climate") ? 1: 0
+			climateProfile.defrost = app.getSetting("${profileName}_defrost")
+			climateProfile.heating1 = app.getSetting("${profileName}_heatAcc") ? 1 : 0
+			climateProfile.igniOnDuration = app.getSetting("${profileName}_ignitionDur")
+
+			def temp_setting = app.getSetting("${profileName}_temp")
+			if (temp_setting == "LO") {
+				temp_setting = CLIMATE_TEMP_MIN_DEFAULT
+			}
+			else if (temp_setting == "HI") {
+				temp_setting = CLIMATE_TEMP_MAX_DEFAULT
+			}
+
+			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting.toString()]
+
+			climateProfileStorage[profileName] = climateProfile
+		}
+
 		getChildDevices().each { device ->
 			if (device.getClimateProfiles() == null) {
-
-				def climateProfileStorage = [:]
-				CLIMATE_PROFILES.each { profileName ->
-					def climateProfile = [:]
-					climateProfile.airCtrl = app.getSetting("${profileName}_climate") ? 1: 0
-					climateProfile.defrost = app.getSetting("${profileName}_defrost")
-					climateProfile.heating1 = app.getSetting("${profileName}_heatAcc") ? 1 : 0
-					climateProfile.igniOnDuration = app.getSetting("${profileName}_ignitionDur")
-
-					def temp_setting = app.getSetting("${profileName}_temp")
-					if (temp_setting == "LO") {
-						temp_setting = CLIMATE_TEMP_MIN_DEFAULT
-					}
-					else if (temp_setting == "HI") {
-						temp_setting = CLIMATE_TEMP_MAX_DEFAULT
-					}
-
-					if (childDevice.currentValue("isEV") == "true") {
-						climateProfile.airTemp = ["unit" : 1, "value" : temp_setting.toString()]
-					}
-					else {
-						climateProfile.airTemp = ["unit" : 1, "value" : temp_setting]
-					}
-
-
-					climateProfileStorage[profileName] = climateProfile
-				}
-
 				log("Migrated climate profile to ${device.getDisplayName()}", "info")
 				device.setClimateProfiles(climateProfileStorage)
 			}

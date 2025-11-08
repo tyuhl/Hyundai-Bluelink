@@ -167,8 +167,8 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
 
-	if (climateCapabilities.igniOnDurationCapable) {
-		profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+	if (climateCapabilities.igniOnDurationMax) {
+		profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: CLIMATE_IGNIONDURATION_DEFAULT
 	}
 	
 	def heating1 = climateProfile?.heating1 ?: 0
@@ -237,8 +237,8 @@ def profilesPage() {
 							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
 						}
 
-						if (climateCapabilities.igniOnDurationCapable) {
-							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+						if (climateCapabilities.igniOnDurationMax > 0) {
+							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-${climateCapabilities.igniOnDurationMax})", defaultValue: climateProfileSettings.ignitionDur, range: "1..${climateCapabilities.igniOnDurationMax}", required: true)
 						}
 					}
 
@@ -304,7 +304,7 @@ def saveClimateProfiles() {
 				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
 				climateProfile.heating1 = getHeating1Value(rearWindowHeat, steeringHeat)
 
-				if (climateCapabilities.igniOnDurationCapable) {
+				if (climateCapabilities.igniOnDurationMax > 0) {
 					climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
 				}
 
@@ -406,7 +406,7 @@ def debugClimateCapabilitiesPage() {
 				app.removeSetting("vehicleClimateCapability_tempMin")
 				app.removeSetting("vehicleClimateCapability_tempMax")
 				app.removeSetting("vehicleClimateCapability_steeringWheelHeatCapable")
-				app.removeSetting("vehicleClimateCapability_igniOnDurationCapable")
+				app.removeSetting("vehicleClimateCapability_igniOnDurationMax")
 
 				// Clear out all seat location names that we support.
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -416,7 +416,7 @@ def debugClimateCapabilitiesPage() {
 				def current_tempMin = climateCapabilities.tempMin
 				def current_tempMax = climateCapabilities.tempMax
 				def current_steeringWheelHeatCapable = climateCapabilities.steeringWheelHeatCapable
-				def current_igniOnDurationCapable = climateCapabilities.igniOnDurationCapable
+				def current_igniOnDurationMax = climateCapabilities.igniOnDurationMax
 
 				def current_seatConfigs = [:]
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -427,10 +427,10 @@ def debugClimateCapabilitiesPage() {
 				}
 
 				section("") {
-					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
-					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
+					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "Minimum Temperature", defaultValue: current_tempMin, required: true)
+					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "Maximum Temperature", defaultValue: current_tempMax, required: true)
 					input(name: "vehicleClimateCapability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
-					input(name: "vehicleClimateCapability_igniOnDurationCapable", type: "bool", title: "Ignition On Duration Capable", defaultValue: current_igniOnDurationCapable)
+					input(name: "vehicleClimateCapability_igniOnDurationMax", type: "number", title: "Ignition On Duration Maximum (0 = Disabled)", defaultValue: current_igniOnDurationMax)
 				}
 
 				section("Seat Configurations") {
@@ -482,7 +482,7 @@ def saveClimateCapabilities() {
 			climateCapabilities.tempMin = vehicleClimateCapability_tempMin
 			climateCapabilities.tempMax = vehicleClimateCapability_tempMax
 			climateCapabilities.steeringWheelHeatCapable = vehicleClimateCapability_steeringWheelHeatCapable
-			climateCapabilities.igniOnDurationCapable = vehicleClimateCapability_igniOnDurationCapable
+			climateCapabilities.igniOnDurationMax = vehicleClimateCapability_igniOnDurationMax
 
 			def seatConfigs = [:]
 			CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -1004,6 +1004,11 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 @Field static final CLIMATE_TEMP_MIN_DEFAULT = 62
 @Field static final CLIMATE_TEMP_MAX_DEFAULT = 82
 
+@Field static final CLIMATE_IGNIONDURATION_GEN2_MAX = 10	// GEN 1 & 2 Maximum
+@Field static final CLIMATE_IGNIONDURATION_GEN2EV_MAX = 0	// Not supported on Gen2 EVs  :(
+@Field static final CLIMATE_IGNIONDURATION_GEN3_MAX = 30	// GEN 3 (and later?) Maximum
+@Field static final CLIMATE_IGNIONDURATION_DEFAULT = 10
+
 @Field static final CLIMATE_PROFILES =
 [
 	"Summer",
@@ -1106,9 +1111,23 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs),
 
 		// Gen 2 EVs don't support setting "igniOnDuration".
-		// Not technically in vehicleDetails, but simplifies the rest of the code.
-		"igniOnDurationCapable" : (device.currentValue("isEV") != "true") || (device.currentValue("vehicleGeneration") != "2")
+		"igniOnDurationMax" : (device.currentValue("isEV") != "true") || (device.currentValue("vehicleGeneration") != "2")
 	]
+
+	// Different combinations of Gen and isEV have different igniOnDuration limits.
+	// Not technically in vehicleDetails, but simplifies the rest of the code.
+	// TODO: Verify the limit of Gen 3 ICE vehicles.  Might actually be 10 for safety reasons...
+	def vehicleGeneration = (device.currentValue("vehicleGeneration") as Integer) ?: 0
+	if (vehicleGeneration >= 3) {
+		log "igniOnDurationMax CLIMATE_IGNIONDURATION_GEN3_MAX", "debug"
+		climateCapabilities.igniOnDurationMax = CLIMATE_IGNIONDURATION_GEN3_MAX
+	}
+	else if (device.currentValue("isEV") == "true") {
+		climateCapabilities.igniOnDurationMax = CLIMATE_IGNIONDURATION_GEN2EV_MAX
+	}
+	else {
+		climateCapabilities.igniOnDurationMax = CLIMATE_IGNIONDURATION_GEN2_MAX
+	}
 
 	// Need to convert to a child device to be able to save to the device.
 	def childDevice = getChildDevice(device.deviceNetworkId)
@@ -1146,8 +1165,8 @@ Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
 		climateCapabilities.seatConfigs = [:]
 	}
 
-	if (!climateCapabilities.containsKey("igniOnDurationCapable")){
-		climateCapabilities.igniOnDurationCapable = true
+	if (!climateCapabilities.containsKey("igniOnDurationMax")){
+		climateCapabilities.igniOnDurationMax = CLIMATE_IGNIONDURATION_GEN2_MAX
 	}
 
 	return climateCapabilities

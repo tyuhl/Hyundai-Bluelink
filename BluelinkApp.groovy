@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.3" }
+static String appVersion() { return "1.0.7-beta.climate.4" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -166,7 +166,10 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	profileSettings.airctrl = climateProfile?.airCtrl ?: true
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
-	profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+
+	if (climateCapabilities.igniOnDurationCapable) {
+		profileSettings.ignitionDur = climateProfile?.igniOnDuration ?: 10
+	}
 	
 	def heating1 = climateProfile?.heating1 ?: 0
 	profileSettings.steeringHeat = heating1HasSteeringHeatingEnabled(heating1)
@@ -234,7 +237,9 @@ def profilesPage() {
 							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
 						}
 
-						input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+						if (climateCapabilities.igniOnDurationCapable) {
+							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-30)", defaultValue: climateProfileSettings.ignitionDur, range: "1..30", required: true)
+						}
 					}
 
 					if (!climateCapabilities.seatConfigs.isEmpty()) {
@@ -290,14 +295,18 @@ def saveClimateProfiles() {
 			CLIMATE_PROFILES.each { profileName ->
 				def climateProfile = [:]
 				climateProfile.airCtrl = app.getSetting("climate_${profileName}_airctrl") ? 1: 0
-				climateProfile.airTemp = ["unit" : 1, "value" : app.getSetting("climate_${profileName}_airTemp")]
 				climateProfile.defrost = app.getSetting("climate_${profileName}_defrost")
+
+				def airTemp = app.getSetting("climate_${profileName}_airTemp")
+				climateProfile.airTemp = ["unit" : 1, "value" : airTemp.toString()]
 
 				def rearWindowHeat = app.getSetting("climate_${profileName}_rearWindowHeat")
 				def steeringHeat = climateCapabilities.steeringWheelHeatCapable ? app.getSetting("climate_${profileName}_steeringHeat") : false
 				climateProfile.heating1 = getHeating1Value(rearWindowHeat, steeringHeat)
 
-				climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
+				if (climateCapabilities.igniOnDurationCapable) {
+					climateProfile.igniOnDuration = app.getSetting("climate_${profileName}_ignitionDur")
+				}
 
 				if (!climateCapabilities.seatConfigs.isEmpty())
 				{
@@ -397,6 +406,7 @@ def debugClimateCapabilitiesPage() {
 				app.removeSetting("vehicleClimateCapability_tempMin")
 				app.removeSetting("vehicleClimateCapability_tempMax")
 				app.removeSetting("vehicleClimateCapability_steeringWheelHeatCapable")
+				app.removeSetting("vehicleClimateCapability_igniOnDurationCapable")
 
 				// Clear out all seat location names that we support.
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -406,6 +416,7 @@ def debugClimateCapabilitiesPage() {
 				def current_tempMin = climateCapabilities.tempMin
 				def current_tempMax = climateCapabilities.tempMax
 				def current_steeringWheelHeatCapable = climateCapabilities.steeringWheelHeatCapable
+				def current_igniOnDurationCapable = climateCapabilities.igniOnDurationCapable
 
 				def current_seatConfigs = [:]
 				CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -419,6 +430,7 @@ def debugClimateCapabilitiesPage() {
 					input(name: "vehicleClimateCapability_tempMin", type: "number", title: "TempMin)", defaultValue: current_tempMin, required: true)
 					input(name: "vehicleClimateCapability_tempMax", type: "number", title: "TempMax)", defaultValue: current_tempMax, required: true)
 					input(name: "vehicleClimateCapability_steeringWheelHeatCapable", type: "bool", title: "Steering Wheel Heat Capable", defaultValue: current_steeringWheelHeatCapable)
+					input(name: "vehicleClimateCapability_igniOnDurationCapable", type: "bool", title: "Ignition On Duration Capable", defaultValue: current_igniOnDurationCapable)
 				}
 
 				section("Seat Configurations") {
@@ -470,6 +482,7 @@ def saveClimateCapabilities() {
 			climateCapabilities.tempMin = vehicleClimateCapability_tempMin
 			climateCapabilities.tempMax = vehicleClimateCapability_tempMax
 			climateCapabilities.steeringWheelHeatCapable = vehicleClimateCapability_steeringWheelHeatCapable
+			climateCapabilities.igniOnDurationCapable = vehicleClimateCapability_igniOnDurationCapable
 
 			def seatConfigs = [:]
 			CLIMATE_SEAT_LOCATIONS.each { seatId, locationInfo ->
@@ -725,6 +738,11 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 {
 	log("getVehicleStatus() called", "trace")
 
+	// TODO - Remove these after gen2hack work has been cleaned up on tester hub.
+	app.removeSetting("sendIms")
+	app.removeSetting("sendUsername")
+	app.removeSetting("sendVin")
+
 	if( !stay_logged_in ) {
 		authorize()
 	}
@@ -869,7 +887,6 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 	}
 
 	def isEV = device.currentValue("isEV") == "true"
-	def vehicleGen = device.currentValue("vehicleGeneration");
 	def uri = global_apiURL + (isEV ? '/ac/v2/evc/fatc/start' : '/ac/v2/rcs/rsc/start')
 	def headers = getDefaultHeaders(device)
 	headers.put('offset', '-4')
@@ -896,19 +913,20 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		}
 	}
 
-	String theVIN = device.currentValue("VIN")
 	String theCar = device.currentValue("NickName")
-	def body;
-	if  (isEV) {
-		body = climateBody
-	} 
-	else {
- 		body = [
-			"username": user_name,
-			"vin": theVIN,
-			"Ims": 0
-		] + climateBody
+
+	def body = [:]
+
+	if (!isEV) {
+		String theVIN = device.currentValue("VIN")
+
+		body.username = user_name
+		body.vin = theVIN
+		body.Ims = 0
 	}
+
+	body += climateBody
+
 	String sBody = JsonOutput.toJson(body).toString()
 
 	def params = [ uri: uri, headers: headers, body: sBody, timeout: 10 ]
@@ -934,7 +952,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 			Start(device, profile,true)
 			return
 		}
-		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.data}", "error")
 		sendEventHelper(device, "Start", false)
 	}
 }
@@ -1085,7 +1103,11 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 		"tempMin" : vehicleDetails.additionalVehicleDetails?.minTemp ?: CLIMATE_TEMP_MIN_DEFAULT,
 		"tempMax" : vehicleDetails.additionalVehicleDetails?.maxTemp ?: CLIMATE_TEMP_MAX_DEFAULT,
 		"steeringWheelHeatCapable" : (vehicleDetails.steeringWheelHeatCapable ?: "NO") == "YES",
-		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs)
+		"seatConfigs" : sanitizeSeatConfigs(vehicleDetails.seatConfigurations?.seatConfigs),
+
+		// Gen 2 EVs don't support setting "igniOnDuration".
+		// Not technically in vehicleDetails, but simplifies the rest of the code.
+		"igniOnDurationCapable" : (device.currentValue("isEV") != "true") || (device.currentValue("vehicleGeneration") != "2")
 	]
 
 	// Need to convert to a child device to be able to save to the device.
@@ -1101,29 +1123,34 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 // Gets the vehicle's climate capabilities cached from the device and handles missing data.
 Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
 {
-	Map vehicleDetails= device.getClimateCapabilities()
+	Map climateCapabilities= device.getClimateCapabilities()
 
-	if (vehicleDetails == null) {
-		vehicleDetails = [:]
+	if (climateCapabilities == null) {
+		log "getSanitizedClimateCapabilities: No climate cabilities found on ${device.getDisplayName}.  Using defaults.", "debug"
+		climateCapabilities = [:]
 	}
 
-	if (!vehicleDetails.containsKey("tempMin")){
-		vehicleDetails.tempMin = CLIMATE_TEMP_MIN_DEFAULT
+	if (!climateCapabilities.containsKey("tempMin")){
+		climateCapabilities.tempMin = CLIMATE_TEMP_MIN_DEFAULT
 	}
 
-	if (!vehicleDetails.containsKey("tempMax")){
-		vehicleDetails.tempMax = CLIMATE_TEMP_MAX_DEFAULT
+	if (!climateCapabilities.containsKey("tempMax")){
+		climateCapabilities.tempMax = CLIMATE_TEMP_MAX_DEFAULT
 	}
 
-	if (!vehicleDetails.containsKey("steeringWheelHeatCapable")){
-		vehicleDetails.steeringWheelHeatCapable = false
+	if (!climateCapabilities.containsKey("steeringWheelHeatCapable")){
+		climateCapabilities.steeringWheelHeatCapable = false
 	}
 
-	if (!vehicleDetails.containsKey("seatConfigs")){
-		vehicleDetails.seatConfigs = [:]
+	if (!climateCapabilities.containsKey("seatConfigs")){
+		climateCapabilities.seatConfigs = [:]
 	}
 
-	return vehicleDetails
+	if (!climateCapabilities.containsKey("igniOnDurationCapable")){
+		climateCapabilities.igniOnDurationCapable = true
+	}
+
+	return climateCapabilities
 }
 
 // Migrates climate profiles exactly from the previous version, despite what the vehicle actually supports.
@@ -1150,7 +1177,8 @@ void migrateClassicProfiles() {
 			else if (temp_setting == "HI") {
 				temp_setting = CLIMATE_TEMP_MAX_DEFAULT
 			}
-			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting]
+
+			climateProfile.airTemp = ["unit" : 1, "value" : temp_setting.toString()]
 
 			climateProfileStorage[profileName] = climateProfile
 		}

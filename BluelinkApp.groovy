@@ -1116,7 +1116,6 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 
 	// Different combinations of Gen and isEV have different igniOnDuration limits.
 	// Not technically in vehicleDetails, but simplifies the rest of the code.
-	// TODO: Verify the limit of Gen 3 ICE vehicles.  Might actually be 10 for safety reasons...
 	def vehicleGeneration = (device.currentValue("vehicleGeneration") as Integer) ?: 0
 	if (vehicleGeneration >= 3) {
 		log "igniOnDurationMax CLIMATE_IGNIONDURATION_GEN3_MAX", "debug"

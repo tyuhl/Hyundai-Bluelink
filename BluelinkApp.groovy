@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.5" }
+static String appVersion() { return "1.0.7-beta.climate.6" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -141,17 +141,22 @@ def getAccountLink() {
 	}
 }
 
-void cleanAppClimateProfileSettings(String profileName) {
-	app.removeSetting("climate_${profileName}_airctrl")
-	app.removeSetting("climate_${profileName}_airTemp")
-	app.removeSetting("climate_${profileName}_defrost")
-	app.removeSetting("climate_${profileName}_steeringHeat")
-	app.removeSetting("climate_${profileName}_rearWindowHeat")
-	app.removeSetting("climate_${profileName}_ignitionDur")
-
-	// Clear out all seat location names that we support.
-	CLIMATE_SEAT_LOCATIONS.each { k, locationInfo ->
-		app.removeSetting("climate_${profileName}_${locationInfo.name}SeatHeatState")
+void loadClimateProfileSettings(String profileName, Map climateProfileSettings, Map climateCapabilities) {
+	log("climateProfileSettings: ${climateProfileSettings}", "debug")
+ 	log("climateCapabilities: ${climateCapabilities}", "debug")
+	app.updateSetting("climate_${profileName}_airCtrl", climateProfileSettings.airctrl)
+	app.updateSetting("climate_${profileName}_airTemp", climateProfileSettings.airTemp)
+	app.updateSetting("climate_${profileName}_defrost", climateProfileSettings.defrost)
+	app.updateSetting("climate_${profileName}_steeringHeat", climateProfileSettings.steeringHeat)
+	app.updateSetting("climate_${profileName}_rearWindowHeat", climateProfileSettings.rearWindowHeat)
+	app.updateSetting("climate_${profileName}_ignitionDur", climateProfileSettings.ignitionDur)
+	
+	// Seat/Vent saved settings
+	if (!climateCapabilities.seatConfigs.isEmpty()) {
+		climateCapabilities.seatConfigs.each { seatId, LocationInfo -> 
+			app.updateSetting("climate_${profileName}_${CLIMATE_SEAT_LOCATIONS[seatId].name}SeatHeatState", 
+								climateProfileSettings.seatHeatState[seatId])
+		}
 	}
 }
 
@@ -163,7 +168,7 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	// saved or a reasonable default if they haven't set this setting yet.
 	def climateProfile = climateProfiles?."${profileName}"
 
-	profileSettings.airctrl = climateProfile?.airCtrl ?: true
+	profileSettings.airctrl = climateProfile?.airCtrl ?: false
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
 
@@ -217,28 +222,27 @@ def profilesPage() {
 				// Identify what climate options are available to the user.
 				def climateProfiles = childDevice.getClimateProfiles()
 				def climateCapabilities = getSanitizedClimateCapabilities(childDevice)
-
 				CLIMATE_PROFILES.each { profileName ->
-					// Delete the current vehicle settings in the app so we can change their values.
-					cleanAppClimateProfileSettings(profileName)
 
 					def climateProfileSettings = getSanitizedClimateProfileSettings(profileName, climateProfiles, climateCapabilities)
 
+					loadClimateProfileSettings(profileName, climateProfileSettings, climateCapabilities)
+
 					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
-						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting", defaultValue: climateProfileSettings.airctrl)
-						input(name: "climate_${profileName}_airTemp", type: "number", title: "Climate temperature to set (${climateCapabilities.tempMin}-${climateCapabilities.tempMax})", defaultValue: climateProfileSettings.airTemp, range: "${climateCapabilities.tempMin}..${climateCapabilities.tempMax}", required: true)
-						input(name: "climate_${profileName}_defrost", type: "bool", title: "Turn on Front Defroster when starting", defaultValue: climateProfileSettings.defrost)
+						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting")
+						input(name: "climate_${profileName}_airTemp", type: "number", title: "Climate temperature to set (${climateCapabilities.tempMin}-${climateCapabilities.tempMax})", range: "${climateCapabilities.tempMin}..${climateCapabilities.tempMax}", required: true)
+						input(name: "climate_${profileName}_defrost", type: "bool", title: "Turn on Front Defroster when starting")
 
 						// Could customize this visibility on "rearWindowHeatCapable" and/or "sideMirrorHeatCapable", but they
 						// currently share the same value, and pretty much every car has rear window heating.
-						input(name: "climate_${profileName}_rearWindowHeat", type: "bool", title: "Turn on Rear Window and Side Mirror Defrosters when starting", defaultValue: climateProfileSettings.rearWindowHeat)
+						input(name: "climate_${profileName}_rearWindowHeat", type: "bool", title: "Turn on Rear Window and Side Mirror Defrosters when starting")
 
 						if (climateCapabilities.steeringWheelHeatCapable) {
-							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting", defaultValue: climateProfileSettings.steeringHeat)
+							input(name: "climate_${profileName}_steeringHeat", type: "bool", title: "Turn on Steering Wheel Heater when starting")
 						}
 
 						if (climateCapabilities.igniOnDurationMax > 0) {
-							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-${climateCapabilities.igniOnDurationMax})", defaultValue: climateProfileSettings.ignitionDur, range: "1..${climateCapabilities.igniOnDurationMax}", required: true)
+							input(name: "climate_${profileName}_ignitionDur", type: "number", title: "Minutes run engine? (1-${climateCapabilities.igniOnDurationMax})", range: "1..${climateCapabilities.igniOnDurationMax}", required: true)
 						}
 					}
 
@@ -250,7 +254,6 @@ def profilesPage() {
 									name: "climate_${profileName}_${CLIMATE_SEAT_LOCATIONS[seatId].name}SeatHeatState",
 									type: "enum",
 									title: "${CLIMATE_SEAT_LOCATIONS[seatId].description} Temperature",
-									defaultValue: climateProfileSettings.seatHeatState[seatId],
 									options: seatConfig.supportedLevels.collect{ [ (it) : CLIMATE_SEAT_SETTINGS[it] ] },
 									required: true)
 							}
@@ -1141,7 +1144,7 @@ void cacheClimateCapabilities(com.hubitat.app.DeviceWrapper device, Map vehicleD
 // Gets the vehicle's climate capabilities cached from the device and handles missing data.
 Map getSanitizedClimateCapabilities(com.hubitat.app.ChildDeviceWrapper device)
 {
-	Map climateCapabilities= device.getClimateCapabilities()
+	Map climateCapabilities = device.getClimateCapabilities()
 
 	if (climateCapabilities == null) {
 		log "getSanitizedClimateCapabilities: No climate cabilities found on ${device.getDisplayName}.  Using defaults.", "debug"

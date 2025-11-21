@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.6" }
+static String appVersion() { return "1.0.7-beta.climate.7" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -144,7 +144,7 @@ def getAccountLink() {
 void loadClimateProfileSettings(String profileName, Map climateProfileSettings, Map climateCapabilities) {
 	log("climateProfileSettings: ${climateProfileSettings}", "debug")
  	log("climateCapabilities: ${climateCapabilities}", "debug")
-	app.updateSetting("climate_${profileName}_airCtrl", climateProfileSettings.airctrl)
+	app.updateSetting("climate_${profileName}_airCtrl", climateProfileSettings.airCtrl)
 	app.updateSetting("climate_${profileName}_airTemp", climateProfileSettings.airTemp)
 	app.updateSetting("climate_${profileName}_defrost", climateProfileSettings.defrost)
 	app.updateSetting("climate_${profileName}_steeringHeat", climateProfileSettings.steeringHeat)
@@ -168,7 +168,7 @@ Map getSanitizedClimateProfileSettings(String profileName, Map climateProfiles, 
 	// saved or a reasonable default if they haven't set this setting yet.
 	def climateProfile = climateProfiles?."${profileName}"
 
-	profileSettings.airctrl = climateProfile?.airCtrl ?: false
+	profileSettings.airCtrl = climateProfile?.airCtrl ?: false
 	profileSettings.airTemp = climateProfile?.airTemp?.value ?: 70
 	profileSettings.defrost = climateProfile?.defrost ?: false
 
@@ -229,7 +229,7 @@ def profilesPage() {
 					loadClimateProfileSettings(profileName, climateProfileSettings, climateCapabilities)
 
 					section(getFormat("header-blue-grad","Profile: ${profileName}")) {
-						input(name: "climate_${profileName}_airctrl", type: "bool", title: "Turn on climate control when starting")
+						input(name: "climate_${profileName}_airCtrl", type: "bool", title: "Turn on climate control when starting")
 						input(name: "climate_${profileName}_airTemp", type: "number", title: "Climate temperature to set (${climateCapabilities.tempMin}-${climateCapabilities.tempMax})", range: "${climateCapabilities.tempMin}..${climateCapabilities.tempMax}", required: true)
 						input(name: "climate_${profileName}_defrost", type: "bool", title: "Turn on Front Defroster when starting")
 
@@ -297,7 +297,7 @@ def saveClimateProfiles() {
 			def climateProfileStorage = [:]
 			CLIMATE_PROFILES.each { profileName ->
 				def climateProfile = [:]
-				climateProfile.airCtrl = app.getSetting("climate_${profileName}_airctrl") ? 1: 0
+				climateProfile.airCtrl = app.getSetting("climate_${profileName}_airCtrl") ? 1: 0
 				climateProfile.defrost = app.getSetting("climate_${profileName}_defrost")
 
 				def airTemp = app.getSetting("climate_${profileName}_airTemp")
@@ -1028,6 +1028,10 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	// Protection against newer locations.  These seats will probably end up ignored.
 ].withDefault { otherValue -> ["name" : "Unknown$otherValue", "description" : "Unknown$otherValue Seat" ]  }
 
+// Yes, there are two "Off" states, though I don't know why.
+// '0' & '1' are possibly an older simpler version of controls, while 2+ are probably for more complex controls.
+// '0' seems to work for all vehicles, but officially some vehicles say they only support '2'.  So we try to
+// respect whichever option the vehicle prefers.  (See also "getDefaultSeatLevel".)
 @Field static final CLIMATE_SEAT_SETTINGS =
 [
 	0 : "Off",

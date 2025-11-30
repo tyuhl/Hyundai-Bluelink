@@ -24,7 +24,7 @@
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  */
 
-String appVersion()   { return "1.0.5-beta.climate.4" }
+String appVersion()   { return "1.0.5-beta.misc-imp.1" }
 def setVersion() {
 	atomicState.name = "Hyundai Bluelink Driver"
 	atomicState.version = appVersion()
@@ -41,6 +41,7 @@ metadata {
 				capability "Initialize"
 				capability "Actuator"
 				capability "Sensor"
+				capability "Lock"
 				capability "Refresh"
 
 				attribute "NickName", "string"
@@ -69,9 +70,8 @@ metadata {
 				attribute "TirePressureWarning", "string"
 				attribute "statusHtml", "string"
 				attribute "EVstatusHtml", "string"
+				attribute "StartStatus", "string"
 
-				command "Lock"
-				command "Unlock"
 				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Profile3"]] ]
 				command "Stop"
 				command "Location"
@@ -103,7 +103,6 @@ void installed()
 void updated()
 {
 	log("updated() called", "trace")
-	setVersion()
 	initialize()
 }
 
@@ -119,6 +118,7 @@ void parse(String message)
 ///
 void initialize() {
 	log("initialize() called", "trace")
+	setVersion()
 	refresh()
 }
 
@@ -134,13 +134,13 @@ void refresh()
 	updateHtml()
 }
 
-void Lock()
+void lock()
 {
 	log("Lock called", "trace")
 	parent.Lock(device)
 }
 
-void Unlock()
+void unlock()
 {
 	log("Unlock called", "trace")
 	parent.Unlock(device)

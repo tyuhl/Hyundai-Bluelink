@@ -43,7 +43,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.7" }
+static String appVersion() { return "1.0.7-beta.misc-imp.1" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -881,8 +881,9 @@ void Unlock(com.hubitat.app.DeviceWrapper device)
 	}
 }
 
-void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=false)
+Boolean Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=false)
 {
+	Boolean bRet = false
 	log("Start() called with profile: ${profile}", "trace")
 
 	if( !stay_logged_in ) {
@@ -941,6 +942,7 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		httpPostJson(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
+				bRet = true
 				log("Vehicle ${theCar} successfully started.","info")
 				sendEventHelper(device, "Start", true)
 			}
@@ -953,15 +955,18 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
 			Start(device, profile,true)
-			return
+			return bRet
 		}
 		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.data}", "error")
 		sendEventHelper(device, "Start", false)
 	}
+	sendEvent(device, [name: "StartStatus", value: START_STATUS[bRet ? "1" : "0"]])
+	return bRet
 }
 
-void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
+Boolean Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 {
+	Boolean bRet = false
 	log("Stop() called", "trace")
 
 	if( !stay_logged_in ) {
@@ -982,6 +987,7 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 		httpPost(params) { response ->
 			reCode = response.getStatus()
 			if (reCode == 200) {
+				bRet = true
 				log("Vehicle ${theCar} successfully stopped.","info")
 				sendEventHelper(device, "Stop", true)
 			}
@@ -994,11 +1000,12 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
 			Stop(device, true)
-			return
+			return bRet
 		}
 		log("Stop vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
 		sendEventHelper(device, "Stop", false)
 	}
+	return bRet
 }
 
 ///
@@ -1017,6 +1024,12 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 	"Summer",
 	"Winter",
 	"Profile3"
+]
+
+@Field static final START_STATUS = 
+[
+	"1" : "Success",
+	"0" :  "Fail"
 ]
 
 @Field static final CLIMATE_SEAT_LOCATIONS =

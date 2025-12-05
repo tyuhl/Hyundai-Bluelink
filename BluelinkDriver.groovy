@@ -73,12 +73,14 @@ metadata {
 				attribute "StartStatus", "string"
 
 				command "Start", [[name: "profile", type: "ENUM", description: "Profile to set options", constraints: ["Summer", "Winter", "Profile3"]] ]
+				command "StartWithDefaultProfile"
 				command "Stop"
 				command "Location"
 			}
 
 	preferences {
 		section("Driver Options") {
+			input("defaultProfile", "enum", title: "Set a default start profile", required: false, defaultValue: "Summer", options: ["Summer", "Winter", "Profile3"])
 			input("fullRefresh", "bool",
 					title: "Full refresh - Turn on this option to directly query the vehicle for status instead of using the vehicle's cached status. Warning: Turning on this option will result in status refreshes that can take as long as 2 minutes.",
 					defaultValue: false)
@@ -150,6 +152,17 @@ void Start(String theProfile)
 {
 	log("Start(profile) called with profile = ${theProfile}", "trace")
 	parent.Start(device, theProfile)
+}
+
+void StartWithDefaultProfile()
+{
+	log("Start-DefaultProfile called", "trace")
+	def theProfile = defaultProfile
+	if (theProfile == null) {
+		log("Error: Start-DefaultProfile called with no defined default profile", "error")
+	} else {
+		parent.Start(device, theProfile)
+	}
 }
 
 void Stop()

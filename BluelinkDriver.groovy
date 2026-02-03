@@ -22,9 +22,10 @@
  *  5/5/25  - Added additional attributes and some EV support
  *  5/10/25 - Added some EV attributes and an EV status HTML attribute
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
+ *  2/2/26 - Merged climate branch into main, version to 1.1.9
  */
 
-String appVersion()   { return "1.0.5-beta.climate.4" }
+String appVersion()   { return "1.1.0" }
 def setVersion() {
 	atomicState.name = "Hyundai Bluelink Driver"
 	atomicState.version = appVersion()

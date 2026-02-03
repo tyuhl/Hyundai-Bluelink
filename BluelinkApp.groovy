@@ -24,6 +24,7 @@
  *  5/8/25 - Refactoring to make more robust for missing JSON data - v1.04
  *  5/10/25 - Add EVBatteryCharging attribute
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
+ *  2/2/26 - Merged climate branch into main, version to 1.1.0
 *
  *
  * Special thanks to:
@@ -35,6 +36,7 @@
  * reverse-engineered the undocumented Bluelink API. Awesome job.
  *
  * @corinuss for fixing EV Start/Stop
+ * @corinuss for awesome climate rewrite to support a lot more vehicles.
  *
  */
 
@@ -43,7 +45,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.0.7-beta.climate.7" }
+static String appVersion() { return "1.1.0" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -91,7 +93,7 @@ preferences {
 
 def mainPage()
 {
-	dynamicPage(name: "mainPage", title: "Hyundai Bluelink App", install: true, uninstall: true) {
+	dynamicPage(name: "mainPage", title: "Hyundai Bluelink App - Version ${appVersion()}", install: true, uninstall: true) {
 		section(getFormat("title","About Hyundai Bluelink Application")) {
 			paragraph "This application and the corresponding driver are used to access the Hyundai Bluelink web services with Hubitat Elevation. Follow the steps below to configure the application."
 		}

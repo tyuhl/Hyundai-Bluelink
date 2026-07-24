@@ -25,7 +25,7 @@
  *  2/2/26 - Merged climate branch into main, version to 1.1.9
  */
 
-String appVersion()   { return "1.1.0" }
+String appVersion()   { return "1.1.1" }
 def setVersion() {
 	atomicState.name = "Hyundai Bluelink Driver"
 	atomicState.version = appVersion()

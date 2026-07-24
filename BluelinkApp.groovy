@@ -25,7 +25,8 @@
  *  5/10/25 - Add EVBatteryCharging attribute
  *  10/18/25 - Fixed EV Start and Stop and added EVBatteryPluggedIn attribute (thx corinuss)
  *  2/2/26 - Merged climate branch into main, version to 1.1.0
-*
+ *  7/23/26 - logging improvement. Don't log errors caused by expired token if retry works
+ *
  *
  * Special thanks to:
  *
@@ -45,7 +46,7 @@ import groovy.json.JsonOutput
 import org.json.JSONObject
 import groovy.transform.Field
 
-static String appVersion() { return "1.1.0" }
+static String appVersion() { return "1.1.1" }
 def setVersion() {
 	if (state.version != appVersion())
 	{
@@ -696,7 +697,9 @@ def getVehicles(Boolean createNewVehicleDevices=false, Boolean retry=false)
 			refreshToken()
 			getVehicles(createNewVehicleDevices, true)
 		}
-		log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		if (retry) {
+			log("getVehicles failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		}
 		return
 	}
 
@@ -804,11 +807,14 @@ void getVehicleStatus(com.hubitat.app.DeviceWrapper device, Boolean refresh = fa
 			refreshToken()
 			getVehicleStatus(device, refresh, true)
 		}
-		log("getVehicleStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		// only log an error if the retry failed
+		if (retry) {
+			log("getVehicleStatus failed -- ${e.getLocalizedMessage()}: ${e.response.data}", "error")
+		}
 	}
 }
 
-void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
+void getLocation(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 {
 	log("getLocation() called", "trace")
 
@@ -852,7 +858,10 @@ void getLocation(com.hubitat.app.DeviceWrapper device, Boolean refresh=false)
 			getLocation(device, true)
 			return
 		}
-		log("getLocation failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		// only log error if retry failed
+		if (retry) {
+			log("getLocation failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		}
 		sendEventHelper(device, "Location", false)
 	}
 }
@@ -954,10 +963,12 @@ void Start(com.hubitat.app.DeviceWrapper device, String profile, Boolean retry=f
 		{
 			log('Authorization token expired, will refresh and retry.', 'warn')
 			refreshToken()
-			Start(device, profile,true)
+			Start(device, profile, true)
 			return
 		}
-		log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.data}", "error")
+		if (retry) {
+			log("Start vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.data}", "error")
+		}
 		sendEventHelper(device, "Start", false)
 	}
 }
@@ -998,7 +1009,9 @@ void Stop(com.hubitat.app.DeviceWrapper device, Boolean retry=false)
 			Stop(device, true)
 			return
 		}
-		log("Stop vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		if (retry) {
+			log("Stop vehicle failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		}
 		sendEventHelper(device, "Stop", false)
 	}
 }
@@ -1279,7 +1292,9 @@ private Boolean LockUnlockHelper(com.hubitat.app.DeviceWrapper device, String ur
 			refreshToken()
 			LockUnlockHelper(device, urlSuffix, true)
 		}
-		log("LockUnlockHelper failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		if (retry) {
+			log("LockUnlockHelper failed -- ${e.getLocalizedMessage()}: Status: ${e.response.getStatus()}", "error")
+		}
 	}
 	return (reCode == 200)
 }
